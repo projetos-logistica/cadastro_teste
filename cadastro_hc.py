@@ -1,28 +1,28 @@
 # cadastro_hc.py
 # ---------------------------------------------------------------
-# Requisitos (instale com):
-#   pip install streamlit pandas python-dateutil pyodbc openpyxl
+# Requisitos:
+#   pip install -r requirements.txt
+#   (inclua: psycopg2-binary, SQLAlchemy, pandas, streamlit, openpyxl etc.)
 # Rode com: streamlit run cadastro_hc.py
 # ---------------------------------------------------------------
 
 import streamlit as st
 import pandas as pd
-import pyodbc
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import List, Tuple, Dict
 
-# Importa utilitários de conexão SQL Server
-from DB import get_conn, test_connection, get_config
+# Conexão com Supabase/Postgres
+from DB_supabase import get_conn, test_connection, get_config
 
 # ------------------------------
 # Config Básica
 # ------------------------------
 st.set_page_config(page_title="Presenças - Logística", layout="wide")
 
-STATUS_OPCOES = ["", "PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS", 
-                 "ATESTADO", "AFASTADO", "ANIVERSÁRIO", "SAIDA ANTC", 
+STATUS_OPCOES = ["", "PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS",
+                 "ATESTADO", "AFASTADO", "ANIVERSÁRIO", "SAIDA ANTC",
                  "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC", "SIN EXP",
                  "SIN ALM", "SIN TEC", "DSR", "CURSO", "DESLIGADO"]
 
@@ -57,26 +57,17 @@ def normaliza_turno(t: str) -> str:
         t = "INTERMEDIARIO"
     return t if t in ["1°", "2°", "3°", "ÚNICO", "INTERMEDIARIO"] else "1°"
 
-# --- LOGIN por e-mail/senha ---------------------------------------------------
-# Quem pode logar (email -> senha)
 # --- LOGIN por e-mail (sem senha) --------------------------------------------
-# Quem pode logar (lista de e-mails permitidos)
 ALLOWED_EMAILS_DEFAULT = {
     "projetos.logistica@somagrupo.com.br",  # admin
     "lucas.silverio@somagrupo.com.br",      # usuário comum (sem admin)
 }
 
-# Quem é admin (pode complementar via st.secrets["admins"])
 ADMIN_EMAILS = {
     "projetos.logistica@somagrupo.com.br",
 }
 
 def _allowed_emails():
-    """
-    Constrói o conjunto de e-mails autorizados:
-    - os do código (ALLOWED_EMAILS_DEFAULT)
-    - + os do st.secrets["users"], que podem ser dict (chaves = e-mails) ou list
-    """
     emails = {e.lower() for e in ALLOWED_EMAILS_DEFAULT}
     try:
         secret_users = st.secrets.get("users", {})
@@ -96,9 +87,7 @@ def is_admin() -> bool:
         admins_extra = set()
     return email in (ADMIN_EMAILS | admins_extra)
 
-# --- Helper: extrai nome do e-mail -------------------------------------------
 def display_name_from_email(email: str) -> str:
-    # pega a parte antes do @ e transforma em "Nome Sobrenome" (title case)
     local = (email or "").split("@")[0]
     if not local:
         return ""
@@ -121,65 +110,50 @@ def show_login():
             st.rerun()
         else:
             st.error("E-mail não autorizado.")
-
     st.stop()
-# ----------------------------------------------------------------------------- 
-
-# -------------------------------------------------------------------------------
 
 # ------------------------------
-# Banco (SQL Server) - Tabelas
+# Banco (Postgres/Supabase) - Tabelas
 # ------------------------------
 def init_db():
-    cn = get_conn()
-    cur = cn.cursor()
-
-    # leaders
-    cur.execute("""
-    IF OBJECT_ID('dbo.leaders', 'U') IS NULL
-    CREATE TABLE dbo.leaders (
-        id         INT IDENTITY(1,1) PRIMARY KEY,
-        nome       NVARCHAR(200) NOT NULL,
-        setor      NVARCHAR(100) NOT NULL,
-        turno      NVARCHAR(20)  NOT NULL,
-        created_at DATETIME2      DEFAULT SYSDATETIME()
-    );
-    """)
-
-    # colaboradores
-    cur.execute("""
-    IF OBJECT_ID('dbo.colaboradores', 'U') IS NULL
-    CREATE TABLE dbo.colaboradores (
-        id         INT IDENTITY(1,1) PRIMARY KEY,
-        nome       NVARCHAR(200) NOT NULL,
-        setor      NVARCHAR(100) NOT NULL,
-        turno      NVARCHAR(20)  NOT NULL,
-        ativo      BIT           DEFAULT 1,
-        created_at DATETIME2      DEFAULT SYSDATETIME()
-    );
-    """)
-
-    # presencas (unique em colaborador_id+data)
-    cur.execute("""
-    IF OBJECT_ID('dbo.presencas', 'U') IS NULL
-    CREATE TABLE dbo.presencas (
-        id             INT IDENTITY(1,1) PRIMARY KEY,
-        colaborador_id INT         NOT NULL,
-        data           DATE        NOT NULL,
-        status         NVARCHAR(20) NULL,
-        setor          NVARCHAR(100) NOT NULL,
-        turno          NVARCHAR(20)  NOT NULL,
-        leader_nome    NVARCHAR(200) NULL,
-        created_at     DATETIME2      DEFAULT SYSDATETIME(),
-        updated_at     DATETIME2      NULL,
-        CONSTRAINT UQ_presenca UNIQUE (colaborador_id, data),
-        CONSTRAINT FK_presenca_colab FOREIGN KEY (colaborador_id) REFERENCES dbo.colaboradores(id)
-    );
-    """)
-
-    cn.commit()
-    cur.close()
-    cn.close()
+    """Cria tabelas caso não existam (seguro para rodar várias vezes)."""
+    with get_conn() as cn, cn.cursor() as cur:
+        cur.execute("""
+        create table if not exists public.leaders (
+          id          bigserial primary key,
+          nome        varchar(200) not null,
+          setor       varchar(100) not null,
+          turno       varchar(20)  not null,
+          created_at  timestamptz  not null default now()
+        );
+        """)
+        cur.execute("""
+        create table if not exists public.colaboradores (
+          id          bigserial primary key,
+          nome        varchar(200) not null,
+          setor       varchar(100) not null,
+          turno       varchar(20)  not null,
+          ativo       boolean      not null default true,
+          created_at  timestamptz  not null default now()
+        );
+        """)
+        cur.execute("""
+        create table if not exists public.presencas (
+          id              bigserial primary key,
+          colaborador_id  bigint      not null,
+          data            date        not null,
+          status          varchar(20),
+          setor           varchar(100) not null,
+          turno           varchar(20)  not null,
+          leader_nome     varchar(200),
+          created_at      timestamptz  not null default now(),
+          updated_at      timestamptz,
+          constraint uq_presenca unique (colaborador_id, data),
+          constraint fk_presenca_colab
+            foreign key (colaborador_id) references public.colaboradores(id)
+        );
+        """)
+        cn.commit()
 
 init_db()
 
@@ -228,62 +202,67 @@ def datas_do_periodo(inicio: date, fim: date) -> List[date]:
     return [inicio + timedelta(days=i) for i in range(n)]
 
 def data_minima_preenchimento(hoje: date | None = None) -> date:
-    """Data mínima liberada = início do período (16..15) que contém 'hoje'."""
     h = hoje or date.today()
     inicio, _ = periodo_por_data(h)
     return inicio
 
-
 # ------------------------------
-# Camada de dados
+# Camada de dados (Postgres)
 # ------------------------------
 def get_or_create_leader(nome: str, setor: str, turno: str) -> int:
     cn = get_conn(); cur = cn.cursor()
-    cur.execute("SELECT id FROM dbo.leaders WHERE nome=? AND setor=? AND turno=?", (nome.strip(), setor, turno))
+    cur.execute(
+        "SELECT id FROM public.leaders WHERE nome=%s AND setor=%s AND turno=%s",
+        (nome.strip(), setor, turno)
+    )
     row = cur.fetchone()
     if row:
         cur.close(); cn.close()
-        return int(row[0])
-    cur.execute("INSERT INTO dbo.leaders (nome, setor, turno) VALUES (?, ?, ?)", (nome.strip(), setor, turno))
-    cn.commit()
-    new_id = cur.execute("SELECT SCOPE_IDENTITY()").fetchone()[0]
-    cur.close(); cn.close()
+        return int(row[0])  # <-- r[0] em vez de row["id"]
+
+    cur.execute(
+        "INSERT INTO public.leaders (nome, setor, turno) VALUES (%s, %s, %s) RETURNING id",
+        (nome.strip(), setor, turno),
+    )
+    new_id = cur.fetchone()[0]  # <-- índice 0
+    cn.commit(); cur.close(); cn.close()
     return int(new_id)
+
 
 def listar_colaboradores(setor: str, turno: str, somente_ativos=True) -> pd.DataFrame:
     cn = get_conn()
-    query = "SELECT id, nome, setor, turno, ativo FROM dbo.colaboradores WHERE setor=? AND turno=?"
+    query = "SELECT id, nome, setor, turno, ativo FROM public.colaboradores WHERE setor=%s AND turno=%s"
     if somente_ativos:
-        query += " AND ativo=1"
+        query += " AND ativo=true"
     df = pd.read_sql(query, cn, params=(setor, turno))
     cn.close()
     return df
 
 def listar_colaboradores_por_setor(setor: str, somente_ativos=True) -> pd.DataFrame:
     cn = get_conn()
-    query = "SELECT id, nome, setor, turno, ativo FROM dbo.colaboradores WHERE setor=?"
+    query = "SELECT id, nome, setor, turno, ativo FROM public.colaboradores WHERE setor=%s"
     params = [setor]
     if somente_ativos:
-        query += " AND ativo=1"
+        query += " AND ativo=true"
     df = pd.read_sql(query, cn, params=params)
     cn.close()
     return df
 
 def listar_colaboradores_setor_turno(setor: str, turno: str, somente_ativos=True) -> pd.DataFrame:
     cn = get_conn()
-    query = "SELECT id, nome, setor, turno, ativo FROM dbo.colaboradores WHERE setor=? AND turno=?"
+    query = "SELECT id, nome, setor, turno, ativo FROM public.colaboradores WHERE setor=%s AND turno=%s"
     params = [setor, turno]
     if somente_ativos:
-        query += " AND ativo=1"
+        query += " AND ativo=true"
     df = pd.read_sql(query, cn, params=params)
     cn.close()
     return df
 
 def listar_todos_colaboradores(somente_ativos: bool = False) -> pd.DataFrame:
     cn = get_conn()
-    query = "SELECT id, nome, setor, turno, ativo FROM dbo.colaboradores"
+    query = "SELECT id, nome, setor, turno, ativo FROM public.colaboradores"
     if somente_ativos:
-        query += " WHERE ativo=1"
+        query += " WHERE ativo=true"
     df = pd.read_sql(query, cn)
     cn.close()
     return df
@@ -292,7 +271,7 @@ def adicionar_colaborador(nome: str, setor: str, turno: str):
     turno = normaliza_turno(turno)
     cn = get_conn(); cur = cn.cursor()
     cur.execute(
-        "INSERT INTO dbo.colaboradores (nome, setor, turno, ativo) VALUES (?, ?, ?, 1)",
+        "INSERT INTO public.colaboradores (nome, setor, turno, ativo) VALUES (%s, %s, %s, true)",
         (nome.strip(), setor, turno),
     )
     cn.commit(); cur.close(); cn.close()
@@ -300,56 +279,51 @@ def adicionar_colaborador(nome: str, setor: str, turno: str):
 def atualizar_turno_colaborador(colab_id: int, novo_turno: str):
     novo_turno = normaliza_turno(novo_turno)
     cn = get_conn(); cur = cn.cursor()
-    cur.execute("UPDATE dbo.colaboradores SET turno=? WHERE id=?", (novo_turno, colab_id))
+    cur.execute("UPDATE public.colaboradores SET turno=%s WHERE id=%s", (novo_turno, colab_id))
     cn.commit(); cur.close(); cn.close()
 
 def upsert_colaborador_turno(nome: str, setor: str, turno: str):
     turno = normaliza_turno(turno)
     cn = get_conn(); cur = cn.cursor()
-    cur.execute("SELECT id FROM dbo.colaboradores WHERE nome=? AND setor=?", (nome.strip(), setor))
+    cur.execute("SELECT id FROM public.colaboradores WHERE nome=%s AND setor=%s", (nome.strip(), setor))
     row = cur.fetchone()
     if row:
-        cur.execute("UPDATE dbo.colaboradores SET turno=?, ativo=1 WHERE id=?", (turno, int(row[0])))
+        cur.execute("UPDATE public.colaboradores SET turno=%s, ativo=true WHERE id=%s", (turno, int(row[0])))  # r[0]
     else:
         cur.execute(
-            "INSERT INTO dbo.colaboradores (nome, setor, turno, ativo) VALUES (?, ?, ?, 1)",
+            "INSERT INTO public.colaboradores (nome, setor, turno, ativo) VALUES (%s, %s, %s, true)",
             (nome.strip(), setor, turno),
         )
     cn.commit(); cur.close(); cn.close()
 
+
 def atualizar_ativo_colaboradores(ids_para_inativar: List[int], ids_para_ativar: List[int]):
     cn = get_conn(); cur = cn.cursor()
     if ids_para_inativar:
-        cur.execute(
-            f"UPDATE dbo.colaboradores SET ativo=0 WHERE id IN ({','.join('?'*len(ids_para_inativar))})",
-            ids_para_inativar,
-        )
+        cur.execute("UPDATE public.colaboradores SET ativo=false WHERE id = ANY(%s)", (ids_para_inativar,))
     if ids_para_ativar:
-        cur.execute(
-            f"UPDATE dbo.colaboradores SET ativo=1 WHERE id IN ({','.join('?'*len(ids_para_ativar))})",
-            ids_para_ativar,
-        )
+        cur.execute("UPDATE public.colaboradores SET ativo=true  WHERE id = ANY(%s)", (ids_para_ativar,))
     cn.commit(); cur.close(); cn.close()
 
 def carregar_presencas(colab_ids: List[int], inicio: date, fim: date) -> Dict[Tuple[int, str], str]:
     if not colab_ids:
         return {}
     cn = get_conn(); cur = cn.cursor()
-    placeholders = ",".join("?" * len(colab_ids))
     cur.execute(
-        f"""
-        SELECT colaborador_id,
-               CONVERT(varchar(10), data, 23) AS data_iso,  -- yyyy-mm-dd
-               status
-        FROM dbo.presencas
-        WHERE colaborador_id IN ({placeholders})
-          AND data BETWEEN ? AND ?
+        """
+        SELECT colaborador_id, data, status
+          FROM public.presencas
+         WHERE colaborador_id = ANY(%s)
+           AND data BETWEEN %s AND %s
         """,
-        [*colab_ids, inicio, fim],
+        (colab_ids, inicio, fim),
     )
-    out = {(int(cid), d): (s or "") for cid, d, s in cur.fetchall()}
+    rows = cur.fetchall()
+    # r[0]=colaborador_id, r[1]=data (date), r[2]=status
+    out = {(int(r[0]), r[1].isoformat()): (r[2] or "") for r in rows}
     cur.close(); cn.close()
     return out
+
 
 def salvar_presencas(df_editado: pd.DataFrame, mapa_id_por_nome: Dict[str, int],
                      inicio: date, fim: date, setor: str, turno: str, leader_nome: str):
@@ -359,7 +333,6 @@ def salvar_presencas(df_editado: pd.DataFrame, mapa_id_por_nome: Dict[str, int],
     O turno gravado, se existir a coluna 'Turno' na grade, vem da própria linha;
     caso contrário, usa o turno selecionado no topo (parâmetro 'turno').
     """
-    # derrete somente as colunas de data
     date_cols = [c for c in df_editado.columns if c not in ("Colaborador", "Setor", "Turno")]
     melt = df_editado.melt(
         id_vars=[c for c in ("Colaborador", "Setor", "Turno") if c in df_editado.columns],
@@ -379,34 +352,27 @@ def salvar_presencas(df_editado: pd.DataFrame, mapa_id_por_nome: Dict[str, int],
         cid    = int(r["colaborador_id"])
         dte    = r["data_iso"]
 
-        # setor base: o da linha, se existir; senão o da página
         setor_base = r.get("Setor", setor)
-        # se for status SIN, sobrescreve o setor do dia
         setor_para_gravar = SIN_TO_SETOR.get(status, setor_base)
-
-        # turno base: o da linha, se existir; senão o da página
         turno_para_gravar = r.get("Turno", turno)
 
         if status == "":
-            cur.execute(
-                "DELETE FROM dbo.presencas WHERE colaborador_id=? AND data=?",
-                (cid, dte),
-            )
+            cur.execute("DELETE FROM public.presencas WHERE colaborador_id=%s AND data=%s", (cid, dte))
         else:
-            cur.execute("""
-                MERGE dbo.presencas AS T
-                USING (VALUES (?, ?)) AS S(colaborador_id, data)
-                     ON T.colaborador_id = S.colaborador_id AND T.data = S.data
-                WHEN MATCHED THEN
-                    UPDATE SET status=?, setor=?, turno=?, leader_nome=?, updated_at=SYSDATETIME()
-                WHEN NOT MATCHED THEN
-                    INSERT (colaborador_id, data, status, setor, turno, leader_nome, created_at, updated_at)
-                    VALUES (S.colaborador_id, S.data, ?, ?, ?, ?, SYSDATETIME(), SYSDATETIME());
-            """, (
-                cid, dte,
-                status, setor_para_gravar, turno_para_gravar, leader_nome,   # UPDATE
-                status, setor_para_gravar, turno_para_gravar, leader_nome    # INSERT
-            ))
+            cur.execute(
+                """
+                INSERT INTO public.presencas
+                  (colaborador_id, data, status, setor, turno, leader_nome, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, now(), now())
+                ON CONFLICT (colaborador_id, data) DO UPDATE
+                  SET status=EXCLUDED.status,
+                      setor=EXCLUDED.setor,
+                      turno=EXCLUDED.turno,
+                      leader_nome=EXCLUDED.leader_nome,
+                      updated_at=now();
+                """,
+                (cid, dte, status, setor_para_gravar, turno_para_gravar, leader_nome),
+            )
 
     cn.commit()
     cur.close(); cn.close()
@@ -422,14 +388,11 @@ def aplicar_status_em_periodo(
     turno_selecao: str,
     leader_nome: str,
 ):
-  
     if not nomes_colaboradores:
         return
 
-    # turnos por colaborador (do df de colaboradores carregado na página)
     turnos_por_nome = df_cols.set_index("nome")["turno"].to_dict()
 
-    # base com colunas fixas
     dias = datas_do_periodo(inicio, fim)
     df = pd.DataFrame({
         "Colaborador": nomes_colaboradores,
@@ -437,11 +400,9 @@ def aplicar_status_em_periodo(
         "Turno": [turnos_por_nome.get(n, turno_selecao) for n in nomes_colaboradores],
     })
 
-    # cria uma coluna por dia do período com o status escolhido
     for d in dias:
         df[d.isoformat()] = status
 
-    # grava tudo de uma vez (essa função já faz o MERGE/UPDATE)
     salvar_presencas(
         df_editado=df,
         mapa_id_por_nome=mapa_id_por_nome,
@@ -451,10 +412,6 @@ def aplicar_status_em_periodo(
         turno=turno_selecao,
         leader_nome=leader_nome or "",
     )
-
-
-
-
 
 # ------------------------------
 # UI Helpers
@@ -471,13 +428,12 @@ def aplicar_status_existentes(base: pd.DataFrame,
                               mapa_id_por_nome: Dict[str, int]):
     for nome, cid in mapa_id_por_nome.items():
         for col in base.columns:
-            if col in ("Colaborador", "Setor", "Turno"):   # <— acrescentado "Turno"
+            if col in ("Colaborador", "Setor", "Turno"):
                 continue
             key = (cid, col)
             if key in presencas:
                 base.loc[base["Colaborador"] == nome, col] = presencas[key]
     return base
-
 
 def coluna_config_datas(inicio: date, fim: date) -> Dict[str, st.column_config.Column]:
     cfg = {}
@@ -503,16 +459,14 @@ def pagina_colaboradores():
     with colf2:
         turno_filtro = st.selectbox("Turno", ["Todos"] + OPCOES_TURNOS, index=0, key="cols_turno")
 
-    # Busca conforme filtro
     if turno_filtro == "Todos":
         df_all = listar_colaboradores_por_setor(setor, somente_ativos=False)
     else:
         df_all = listar_colaboradores_setor_turno(setor, turno_filtro, somente_ativos=False)
 
-    df_ativos = df_all[df_all["ativo"] == 1]
-    df_inativos = df_all[df_all["ativo"] == 0]
+    df_ativos = df_all[df_all["ativo"] == True]
+    df_inativos = df_all[df_all["ativo"] == False]
 
-    # --- Adicionar novo colaborador
     with st.expander("Adicionar novo colaborador", expanded=False):
         with st.form("add_colab"):
             nome = st.text_input("Nome do colaborador")
@@ -526,25 +480,21 @@ def pagina_colaboradores():
             else:
                 st.warning("Informe um nome válido.")
 
-    # --- Excluir colaborador (remove da lista de ativos)
     with st.expander("Excluir colaborador (remover da lista)", expanded=False):
         st.caption("A exclusão aqui **inativa** o colaborador (não apaga o histórico).")
         if df_ativos.empty:
             st.info("Não há colaboradores ativos nesse filtro.")
         else:
-            # Lista somente os ATIVOS para excluir
             opcoes_del = {
                 f"{row['nome']} (ID {row['id']})": int(row['id'])
                 for _, row in df_ativos.sort_values('nome').iterrows()
             }
             escolha_del = st.selectbox("Selecione o colaborador para excluir", list(opcoes_del.keys()))
             if st.button("Excluir colaborador", type="primary", key="btn_del_colab"):
-                # Inativa o colaborador selecionado
                 atualizar_ativo_colaboradores([opcoes_del[escolha_del]], [])
                 st.success("Colaborador removido da lista de ativos (inativado).")
                 st.rerun()
 
-    # --- Editar turno (mantido como estava)
     with st.expander("Editar turno de colaborador", expanded=False):
         if df_all.empty:
             st.info("Nenhum colaborador listado no filtro atual.")
@@ -557,7 +507,6 @@ def pagina_colaboradores():
                 st.success("Turno atualizado!")
                 st.rerun()
 
-    # --- Tabelas
     colA, colB = st.columns(2)
     with colA:
         st.subheader("Ativos")
@@ -604,10 +553,10 @@ def pagina_relatorios_globais():
         df = pd.read_sql(
             f"""
             SELECT c.nome AS colaborador, p.data, p.status, p.setor, p.turno, p.leader_nome
-              FROM dbo.presencas p JOIN dbo.colaboradores c ON c.id = p.colaborador_id
-             WHERE p.data BETWEEN ? AND ?
-             {"AND p.setor = ?" if setor_sel != "Todos" else ""}
-             {"AND p.turno = ?" if turno_sel != "Todos" else ""}
+              FROM public.presencas p JOIN public.colaboradores c ON c.id = p.colaborador_id
+             WHERE p.data BETWEEN %s AND %s
+             {"AND p.setor = %s" if setor_sel != "Todos" else ""}
+             {"AND p.turno = %s" if turno_sel != "Todos" else ""}
              ORDER BY p.setor, p.turno, c.nome, p.data
             """,
             get_conn(),
@@ -957,7 +906,7 @@ def seed_colaboradores_iniciais(turno_default: str = "1°"):
         for nome in _parse_names(blob):
             cn = get_conn(); cur = cn.cursor()
             cur.execute(
-                "SELECT 1 FROM dbo.colaboradores WHERE nome=? AND setor=? AND turno=?",
+                "SELECT 1 FROM public.colaboradores WHERE nome=%s AND setor=%s AND turno=%s",
                 (nome, setor, turno_default),
             )
             exists = cur.fetchone()
@@ -1032,7 +981,6 @@ def importar_turnos_de_arquivo(arquivo, setor_padrao: str | None = None) -> int:
 def pagina_lancamento_diario():
     st.markdown("### Lançamento diário de presença (por setor)")
 
-    # agora uso 5 colunas: Setor | Turno | Data | Filtro | Nome
     colA, colB, colC, colD, colE = st.columns([1, 1, 1, 1, 2])
 
     with colA:
@@ -1044,25 +992,22 @@ def pagina_lancamento_diario():
     with colC:
         min_permitida = data_minima_preenchimento()
         data_dia = st.date_input(
-        "Data do preenchimento",
-        value=max(date.today(), min_permitida),  # garante valor inicial válido
-        min_value=min_permitida,                 # <-- trava o passado antes do início do período
-        format="DD/MM/YYYY",
-        key="lan_data",
-    )
+            "Data do preenchimento",
+            value=max(date.today(), min_permitida),
+            min_value=min_permitida,
+            format="DD/MM/YYYY",
+            key="lan_data",
+        )
 
-
-    # >>> NOVO FILTRO AQUI <<<
     with colD:
         filtro_st = st.multiselect(
             "Filtro",
             options=["SOMA", "TERCEIROS"],
-            default=["SOMA", "TERCEIROS"],  # ambos selecionados = mostra todos
+            default=["SOMA", "TERCEIROS"],
             key="lan_filtro_st"
         )
 
     with colE:
-        # preenche automaticamente com o nome derivado do e-mail logado
         default_name = display_name_from_email(st.session_state.get("user_email", ""))
         if default_name:
             st.text_input("Seu nome", value=default_name, key="lan_nome", disabled=True)
@@ -1070,14 +1015,11 @@ def pagina_lancamento_diario():
         else:
             nome_preenchedor = st.text_input("Seu nome (opcional)", key="lan_nome")
 
-    # ------ busca colaboradores (Setor/Turno) ------
     if turno_sel == "Todos":
         df_cols = listar_colaboradores_por_setor(setor, somente_ativos=True)
     else:
         df_cols = listar_colaboradores_setor_turno(setor, turno_sel, somente_ativos=True)
 
-    # ------ aplica o filtro SOMA / TERCEIROS ------
-    # "TERCEIROS" = nome termina com "- terceiro" (case-insensitive, com ou sem espaços)
     mask_terceiro = df_cols["nome"].str.contains(r"-\s*terceiro\s*$", case=False, na=False)
 
     escolha = set(filtro_st)
@@ -1086,7 +1028,6 @@ def pagina_lancamento_diario():
     elif escolha == {"TERCEIROS"}:
         df_cols = df_cols[mask_terceiro]
     else:
-        # ambos selecionados (ou nenhum) -> não filtra
         pass
 
     if len(df_cols) == 0:
@@ -1096,34 +1037,30 @@ def pagina_lancamento_diario():
     iso = data_dia.isoformat()
     base = pd.DataFrame(
         {
-        "Colaborador": df_cols["nome"].tolist(),
-        "Setor": df_cols["setor"].tolist(),
-        "Turno": df_cols["turno"].tolist(),   # <— NOVO
-        iso: ""
+            "Colaborador": df_cols["nome"].tolist(),
+            "Setor": df_cols["setor"].tolist(),
+            "Turno": df_cols["turno"].tolist(),
+            iso: ""
         },
         dtype="object"
     )
 
-
     pres = carregar_presencas(df_cols["id"].tolist(), data_dia, data_dia)
     mapa = dict(zip(df_cols["nome"], df_cols["id"]))
     base = aplicar_status_existentes(base, pres, mapa)
-    
 
     cfg = {
-    "Colaborador": st.column_config.TextColumn("Colaborador", disabled=True),
-    "Setor": st.column_config.TextColumn("Setor", disabled=True),
-    "Turno": st.column_config.TextColumn("Turno", disabled=True),   # <— NOVO
-    iso: st.column_config.SelectboxColumn(
-        label=data_dia.strftime("%d/%m"),
-        options=STATUS_OPCOES,
-        required=False,
-    ),
-}
-
+        "Colaborador": st.column_config.TextColumn("Colaborador", disabled=True),
+        "Setor": st.column_config.TextColumn("Setor", disabled=True),
+        "Turno": st.column_config.TextColumn("Turno", disabled=True),
+        iso: st.column_config.SelectboxColumn(
+            label=data_dia.strftime("%d/%m"),
+            options=STATUS_OPCOES,
+            required=False,
+        ),
+    }
 
     st.markdown("#### Tabela do dia")
-    # incluir o filtro na chave do editor evita cache estranho ao alternar
     editor_key = f"editor_dia_{iso}_{setor}_{turno_sel}_{'-'.join(sorted(filtro_st) or ['TODOS'])}"
     editado = st.data_editor(
         base,
@@ -1134,7 +1071,6 @@ def pagina_lancamento_diario():
         key=editor_key,
     )
 
-                # --- FÉRIAS em período (aparece só quando há alguém marcado como FÉRIAS no dia) ---
     colaboradores_marcados_ferias = editado.loc[editado[iso] == "FÉRIAS", "Colaborador"].tolist()
     if colaboradores_marcados_ferias:
         with st.expander("Aplicar FÉRIAS para um período", expanded=True):
@@ -1144,7 +1080,6 @@ def pagina_lancamento_diario():
                 + ": "
                 + ", ".join(colaboradores_marcados_ferias)
             )
-
             ini_periodo_atual, fim_periodo_atual = periodo_por_data(data_dia)
 
             colf1, colf2 = st.columns(2)
@@ -1172,7 +1107,7 @@ def pagina_lancamento_diario():
             ):
                 aplicar_status_em_periodo(
                     nomes_colaboradores=colaboradores_marcados_ferias,
-                    df_cols=df_cols,  # dataframe original de colaboradores carregado pela página
+                    df_cols=df_cols,
                     mapa_id_por_nome=mapa,
                     inicio=ferias_ini,
                     fim=ferias_fim,
@@ -1183,8 +1118,6 @@ def pagina_lancamento_diario():
                 )
                 st.success("FÉRIAS aplicadas no período selecionado!")
                 st.rerun()
-
-
 
     if st.button("Salvar dia"):
         salvar_presencas(
@@ -1197,15 +1130,15 @@ def pagina_lancamento_diario():
             leader_nome=nome_preenchedor or "",
         )
         st.success("Registros salvos/atualizados!")
-        st.session_state.pop(editor_key, None)  
+        st.session_state.pop(editor_key, None)
         st.rerun()
 
     with st.expander("Exportar CSV do dia", expanded=False):
         df = pd.read_sql(
             """
             SELECT c.nome AS colaborador, p.data, p.status, p.setor, p.turno, p.leader_nome
-              FROM dbo.presencas p JOIN dbo.colaboradores c ON c.id = p.colaborador_id
-             WHERE p.setor = ? AND p.data = ?
+              FROM public.presencas p JOIN public.colaboradores c ON c.id = p.colaborador_id
+             WHERE p.setor = %s AND p.data = %s
              ORDER BY colaborador
             """,
             get_conn(),
@@ -1222,24 +1155,23 @@ def pagina_lancamento_diario():
                 mime="text/csv",
             )
 
-
 # ------------------------------
 # Página de Configuração do DB
 # ------------------------------
 def pagina_db():
-    st.markdown("### Configuração do Banco (SQL Server)")
+    st.markdown("### Configuração do Banco (Postgres/Supabase)")
     cfg = get_config()
     col1, col2 = st.columns(2)
     with col1:
-        st.text_input("Servidor", value=cfg["SERVER"], disabled=True)
-        st.text_input("Base de Dados", value=cfg["DATABASE"], disabled=True)
-        st.text_input("Usuário", value=cfg["UID"], disabled=True)
+        st.text_input("Host", value=cfg["HOST"], disabled=True)
+        st.text_input("Base de Dados", value=cfg["DBNAME"], disabled=True)
+        st.text_input("Usuário", value=cfg["USER"], disabled=True)
     with col2:
-        st.text_input("Encrypt", value=cfg["ENCRYPT"], disabled=True)
-        st.text_input("TrustServerCertificate", value=cfg["TRUST_CERT"], disabled=True)
+        st.text_input("SSL Mode", value=cfg["SSLMODE"], disabled=True)
+        st.text_input("Porta", value=cfg["PORT"], disabled=True)
         st.text_input("Timeout (s)", value=str(cfg["CONNECT_TIMEOUT"]), disabled=True)
 
-    st.caption("As credenciais são lidas de variáveis de ambiente. Altere-as no servidor/ambiente de execução.")
+    st.caption("As credenciais vêm das variáveis PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD.")
 
     if st.button("🔌 Testar conexão"):
         try:
@@ -1255,10 +1187,8 @@ def pagina_db():
 if not st.session_state.get("auth", False):
     show_login()
 
-# >>> Auto-import: rode uma vez por sessão (se quiser manter)
 if not st.session_state.get("seed_loaded", False):
-    # Se não quiser auto-import, comente as duas linhas abaixo
-    # _try_auto_import_seed()
+    # _try_auto_import_seed()  # opcional
     st.session_state["seed_loaded"] = True
 
 st.sidebar.title("Menu")
@@ -1268,11 +1198,9 @@ if st.sidebar.button("Sair"):
         st.session_state.pop(k, None)
     st.rerun()
 
-# Opções de navegação (Colaboradores e DB só aparecem para admin)
 nav_opts = ["Lançamento diário"] + (["Colaboradores"] if is_admin() else []) + ["Relatórios"] + (["DB"] if is_admin() else [])
 escolha = st.sidebar.radio("Navegação", nav_opts, index=0)
 
-# Painel Admin apenas para admin
 if is_admin():
     with st.sidebar.expander("⚙️ Admin"):
         coladm1, coladm2 = st.columns([1,1])
@@ -1288,12 +1216,11 @@ if is_admin():
                 st.warning("Selecione um arquivo .xlsx ou .csv")
             else:
                 try:
-                    n = importar_turnos_de_arquivo(up, setor_padrao=None if setor_default.startswith("(") else setor_default)
+                    n = importar_turnos_de_arquivo(up, setor_padrao=None if str(setor_default).startswith("(") else setor_default)
                     st.success(f"Turnos aplicados/atualizados para {n} colaboradores.")
                 except Exception as e:
                     st.error(f"Erro ao importar: {e}")
 
-# Roteamento
 if escolha == "Lançamento diário":
     pagina_lancamento_diario()
 elif escolha == "Colaboradores":
