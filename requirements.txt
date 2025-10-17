@@ -40,5 +40,5 @@ typing_extensions==4.15.0
 tzdata==2025.2
 urllib3==2.5.0
 watchdog==6.0.0
-pyodbc==5.1.0; platform_system == "Windows"pip list | findstr -i sqlalchemy   # Windows
+pyodbc==5.1.0; platform_system == "Windows"  # Windows apenas (local)
 SQLAlchemy==2.0.34
