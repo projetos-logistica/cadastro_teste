@@ -155,7 +155,6 @@ def init_db():
         """)
         cn.commit()
 
-init_db()
 
 def _try_auto_import_seed():
     caminhos = [
@@ -1190,6 +1189,16 @@ if not st.session_state.get("auth", False):
 if not st.session_state.get("seed_loaded", False):
     # _try_auto_import_seed()  # opcional
     st.session_state["seed_loaded"] = True
+
+# >>> ADICIONE ESTE BLOCO <<<
+if not st.session_state.get("db_inited"):
+    try:
+        init_db()  # cria tabelas se não existirem; só roda depois do login
+        st.session_state["db_inited"] = True
+    except Exception as e:
+        st.error("Falha ao inicializar/abrir o banco. Verifique os Secrets (PGHOST/PGUSER/PGPASSWORD).")
+        st.caption(str(e))
+        st.stop()
 
 st.sidebar.title("Menu")
 st.sidebar.caption(f"Usuário: {st.session_state.get('user_email','')}")
