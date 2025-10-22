@@ -60,7 +60,8 @@ def normaliza_turno(t: str) -> str:
 # --- LOGIN por e-mail (sem senha) --------------------------------------------
 ALLOWED_EMAILS_DEFAULT = {
     "projetos.logistica@somagrupo.com.br",  # admin
-    "lucas.silverio@somagrupo.com.br",      # usuário comum (sem admin)
+    "lucas.silverio@somagrupo.com.br",
+  "rodrigo.pessoa@somagrupo.com.br", #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
