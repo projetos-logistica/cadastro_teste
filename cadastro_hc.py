@@ -24,7 +24,7 @@ st.set_page_config(page_title="Presenças - Logística", layout="wide")
 STATUS_OPCOES = ["", "PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS",
                  "ATESTADO", "AFASTADO", "ANIVERSÁRIO", "SAIDA ANTC",
                  "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC", "SIN EXP",
-                 "SIN ALM", "SIN TEC", "DSR", "CURSO", "DESLIGADO"]
+                 "SIN ALM", "SIN TEC", "DSR", "CURSO", "DESLIGADO", "-"]
 
 OPCOES_SETORES = [
     "Aviamento",
