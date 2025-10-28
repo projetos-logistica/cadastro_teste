@@ -362,19 +362,23 @@ def salvar_presencas(df_editado: pd.DataFrame, mapa_id_por_nome: Dict[str, int],
             cur.execute("DELETE FROM public.presencas WHERE colaborador_id=%s AND data=%s", (cid, dte))
         else:
             cur.execute(
-                """
-                INSERT INTO public.presencas
-                  (colaborador_id, data, status, setor, turno, leader_nome, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, now(), now())
-                ON CONFLICT (colaborador_id, data) DO UPDATE
-                  SET status=EXCLUDED.status,
-                      setor=EXCLUDED.setor,
-                      turno=EXCLUDED.turno,
-                      leader_nome=EXCLUDED.leader_nome,
-                      updated_at=now();
-                """,
-                (cid, dte, status, setor_para_gravar, turno_para_gravar, leader_nome),
-            )
+    """
+    INSERT INTO public.presencas
+      (colaborador_id, data, status, setor, turno, leader_nome, created_at, updated_at)
+    VALUES (%s, %s, %s, %s, %s, %s, now(), now())
+    ON CONFLICT (colaborador_id, data) DO UPDATE
+      SET status      = EXCLUDED.status,
+          setor       = EXCLUDED.setor,
+          turno       = EXCLUDED.turno,
+          leader_nome = EXCLUDED.leader_nome,
+          updated_at  = now()
+      -- só atualiza se houve mudança de algum campo relevante
+      WHERE presencas.status IS DISTINCT FROM EXCLUDED.status
+         OR presencas.setor  IS DISTINCT FROM EXCLUDED.setor
+         OR presencas.turno  IS DISTINCT FROM EXCLUDED.turno;
+    """,
+    (cid, dte, status, setor_para_gravar, turno_para_gravar, leader_nome),
+)
 
     cn.commit()
     cur.close(); cn.close()
