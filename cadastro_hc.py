@@ -63,8 +63,7 @@ ALLOWED_EMAILS_DEFAULT = {
     "lucas.silverio@somagrupo.com.br",
   "rodrigo.pessoa@somagrupo.com.br",
   "marcos.lima@somagrupo.com.br", 
-  "luiz.anchieta@somagrupo.com.br",
-  "joaomarcos.silva@somagrupo.com.br",#usuário comum (sem admin)
+  "luiz.anchieta@somagrupo.com.br", #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
@@ -1078,53 +1077,71 @@ def pagina_lancamento_diario():
         key=editor_key,
     )
 
-    colaboradores_marcados_ferias = editado.loc[editado[iso] == "FÉRIAS", "Colaborador"].tolist()
-    if colaboradores_marcados_ferias:
+    # Quem já estava salvo como FÉRIAS no banco para este dia
+    ja_em_ferias = {nome for nome, cid in mapa.items() if pres.get((cid, iso)) == "FÉRIAS"}
+
+    # Quem está marcado como FÉRIAS no editor agora
+    marcados_no_editor = editado.loc[editado[iso] == "FÉRIAS", "Colaborador"].tolist()
+
+    # Aplique somente para os RECÉM marcados (exclui quem já estava de férias)
+    recem_marcados = [n for n in marcados_no_editor if n not in ja_em_ferias]
+
+    if recem_marcados:
         with st.expander("Aplicar FÉRIAS para um período", expanded=True):
             st.caption(
-                "Marcados como FÉRIAS em "
-                + data_dia.strftime("%d/%m/%Y")
-                + ": "
-                + ", ".join(colaboradores_marcados_ferias)
+            "Você marcou FÉRIAS em "
+            + data_dia.strftime("%d/%m/%Y")
+            + " para: "
+            + ", ".join(recem_marcados)
+        )
+
+        ini_periodo_atual, fim_periodo_atual = periodo_por_data(data_dia)
+
+        colf1, colf2 = st.columns(2)
+        with colf1:
+            ferias_ini = st.date_input(
+                "Início das férias",
+                value=data_dia,
+                min_value=data_minima_preenchimento(),
+                format="DD/MM/YYYY",
+                key=f"ferias_ini_{editor_key}",
             )
-            ini_periodo_atual, fim_periodo_atual = periodo_por_data(data_dia)
+        with colf2:
+            ferias_fim = st.date_input(
+                "Fim das férias",
+                value=fim_periodo_atual,
+                min_value=ferias_ini,
+                format="DD/MM/YYYY",
+                key=f"ferias_fim_{editor_key}",
+            )
 
-            colf1, colf2 = st.columns(2)
-            with colf1:
-                ferias_ini = st.date_input(
-                    "Início das férias",
-                    value=data_dia,
-                    min_value=data_minima_preenchimento(),
-                    format="DD/MM/YYYY",
-                    key=f"ferias_ini_{editor_key}",
-                )
-            with colf2:
-                ferias_fim = st.date_input(
-                    "Fim das férias",
-                    value=fim_periodo_atual,
-                    min_value=ferias_ini,
-                    format="DD/MM/YYYY",
-                    key=f"ferias_fim_{editor_key}",
-                )
+        # (Opcional) permitir desmarcar alguém desta aplicação
+        selecionados = st.multiselect(
+            "Aplicar para:",
+            options=recem_marcados,
+            default=recem_marcados,
+            key=f"sele_ferias_{editor_key}",
+        )
 
-            if st.button(
-                "Aplicar FÉRIAS no período para os colaboradores acima",
-                type="primary",
-                key=f"btn_aplicar_ferias_{editor_key}",
-            ):
-                aplicar_status_em_periodo(
-                    nomes_colaboradores=colaboradores_marcados_ferias,
-                    df_cols=df_cols,
-                    mapa_id_por_nome=mapa,
-                    inicio=ferias_ini,
-                    fim=ferias_fim,
-                    status="FÉRIAS",
-                    setor=setor,
-                    turno_selecao=(turno_sel if turno_sel != "Todos" else "-"),
-                    leader_nome=nome_preenchedor,
-                )
-                st.success("FÉRIAS aplicadas no período selecionado!")
-                st.rerun()
+        if selecionados and st.button(
+            "Aplicar FÉRIAS no período para os colaboradores selecionados",
+            type="primary",
+            key=f"btn_aplicar_ferias_{editor_key}",
+        ):
+            aplicar_status_em_periodo(
+                nomes_colaboradores=selecionados,
+                df_cols=df_cols,
+                mapa_id_por_nome=mapa,
+                inicio=ferias_ini,
+                fim=ferias_fim,
+                status="FÉRIAS",
+                setor=setor,
+                turno_selecao=(turno_sel if turno_sel != "Todos" else "-"),
+                leader_nome=nome_preenchedor,
+            )
+            st.success("FÉRIAS aplicadas no período selecionado!")
+            st.rerun()
+
 
     if st.button("Salvar dia"):
         salvar_presencas(
