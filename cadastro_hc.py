@@ -70,8 +70,8 @@ ALLOWED_EMAILS_DEFAULT = {
   "alessandro.jorge@farmrio.com.br",
   "eduardo.oliveira@somagrupo.com.br", 
   "allan.pires@somagrupo.com.br", 
-  "marlon.freitas@somagrupo.com.br"
-  "fernando.souza@animale.com.br"
+  "marlon.freitas@somagrupo.com.br",
+  "fernando.souza@animale.com.br",
   "patrick.lima@somagrupo.com.br",
   "leandro.fernades@somagrupo.com.br", #usuário comum (sem admin)
 }
