@@ -63,7 +63,10 @@ ALLOWED_EMAILS_DEFAULT = {
     "lucas.silverio@somagrupo.com.br",
   "rodrigo.pessoa@somagrupo.com.br",
   "marcos.lima@somagrupo.com.br", 
-  "luiz.anchieta@somagrupo.com.br", #usuário comum (sem admin)
+  "luiz.anchieta@somagrupo.com.br",
+  "lucas.mlima@somagrupo.com.br",
+  "vinicius.stefano@somagrupo.com.br"
+  "gabriella.sozinho@animale.com.br", #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
