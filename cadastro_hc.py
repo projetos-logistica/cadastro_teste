@@ -77,7 +77,17 @@ ALLOWED_EMAILS_DEFAULT = {
   "bruno.soares@animale.com.br",
   "lucas.mlima@somagrupo.com.br",
   "vinicius.stefano@somagrupo.com.br",
-  "gabriella.sozinho@animale.com.br", #usuário comum (sem admin)
+  "gabriella.sozinho@animale.com.br", 
+
+"isac.mello@somagrupo.com.br",
+"deyvid.silva@somagrupo.com.br",
+"lucas.yan@somagrupo.com.br",
+"allan.fernandes@somagrupo.com.br",
+"patrick.casemiro@somagrupo.com.br",
+"emerson.alves@somagrupo.com.br",
+"michael.salles@mariafilo.com.br",
+"pedro.queluci@somagrupo.com.br",
+"marcelo.freitas@somagrupo.com.br", #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
