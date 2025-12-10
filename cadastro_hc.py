@@ -74,7 +74,10 @@ ALLOWED_EMAILS_DEFAULT = {
   "fernando.souza@animale.com.br",
   "patrick.lima@somagrupo.com.br",
   "leandro.fernandes@somagrupo.com.br",
-  "bruno.soares@animale.com.br" #usuário comum (sem admin)
+  "bruno.soares@animale.com.br",
+  "lucas.mlima@somagrupo.com.br",
+  "vinicius.stefano@somagrupo.com.br",
+  "gabriella.sozinho@animale.com.br", #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
