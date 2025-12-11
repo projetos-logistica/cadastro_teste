@@ -94,7 +94,25 @@ ALLOWED_EMAILS_DEFAULT = {
 "fabiane.corso@somagrupo.com.br",
 "fabio.rocha@somagrupo.com.br",
 "ana.moutinho@somagrupo.com.br",
-"deivisson.alcantara@somagrupo.com.br" #usuário comum (sem admin)
+"deivisson.alcantara@somagrupo.com.br",
+
+# 11/12/2025 - adriano soares
+"joao.rodrigues@animale.com.br",
+"cesar.silva@somagrupo.com.br",
+"michelle.rocha@somagrupo.com.br",
+"leon.gomes@somagrupo.com.br",
+"sandra.regina@mariafilo.com.br",
+"tayna.vieira@somagrupo.com.br",
+"pedro.nascimento@somagrupo.com.br",
+"edilson.matheus@somagrupo.com.br",
+"giovanna.castro@somagrupo.com.br",
+"carlos.teixeira@somagrupo.com.br",
+"renan.rangel@somagrupo.com.br",
+"kamille.santos@somagrupo.com.br",
+"lucas.castro@somagrupo.com.br",
+"suelen.braga@somagrupo.com.br",
+"gabriel.patricio@somagrupo.com.br",
+"jose.junior@somagrupo.com.br" #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
