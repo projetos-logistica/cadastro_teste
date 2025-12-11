@@ -87,7 +87,14 @@ ALLOWED_EMAILS_DEFAULT = {
 "emerson.alves@somagrupo.com.br",
 "michael.salles@mariafilo.com.br",
 "pedro.queluci@somagrupo.com.br",
-"marcelo.freitas@somagrupo.com.br", #usuário comum (sem admin)
+"marcelo.freitas@somagrupo.com.br", 
+
+ #11/12/2025 - adriano soares 
+"rachel.paiva@somagrupo.com.br",
+"fabiane.corso@somagrupo.com.br",
+"fabio.rocha@somagrupo.com.br",
+"ana.moutinho@somagrupo.com.br",
+"deivisson.alcantara@somagrupo.com.br" #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
