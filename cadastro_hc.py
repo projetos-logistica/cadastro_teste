@@ -112,7 +112,22 @@ ALLOWED_EMAILS_DEFAULT = {
 "lucas.castro@somagrupo.com.br",
 "suelen.braga@somagrupo.com.br",
 "gabriel.patricio@somagrupo.com.br",
-"jose.junior@somagrupo.com.br" #usuário comum (sem admin)
+"jose.junior@somagrupo.com.br",
+
+#16/12/2025:
+
+"jorge.batista@somagrupo.com.br",
+"joaomarcos.silva@somagrupo.com.br",
+"pedro.melo@somagrupo.com.br",
+"nicollas.rigar@animale.com.br",
+"bruno.silva@animale.com.br",
+"cesar.silva@somagrupo.com.br",
+"eduardo.oliveira@somagrupo.com.br",
+"edvando.ferreira@farmrio.com.br",
+"yuri.avila@somagrupo.com.br",
+"deivisson.alcantara@somagrupo.com.br",
+"mateus.henrique@somagrupo.com.br",
+"roger.rodrigues@somagrupo.com.br", #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
