@@ -129,7 +129,10 @@ ALLOWED_EMAILS_DEFAULT = {
 "yuri.avila@somagrupo.com.br",
 "deivisson.alcantara@somagrupo.com.br",
 "mateus.henrique@somagrupo.com.br",
-"roger.rodrigues@somagrupo.com.br", #usuário comum (sem admin)
+"roger.rodrigues@somagrupo.com.br", 
+"bruno.barbosa@animale.com.br",
+ 
+  #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
