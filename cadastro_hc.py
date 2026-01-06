@@ -131,6 +131,7 @@ ALLOWED_EMAILS_DEFAULT = {
 "mateus.henrique@somagrupo.com.br",
 "roger.rodrigues@somagrupo.com.br", 
 "bruno.barbosa@animale.com.br",
+"gabriel.sandro@somagrupo.com.br",  
  
   #usuário comum (sem admin)
 }
