@@ -135,6 +135,8 @@ ALLOWED_EMAILS_DEFAULT = {
 
   #08/01/2026: Lucas Silvério
   "renata.ferraz@farmrio.com.br",
+  "romulo.martins@somagrupo.com.br",
+  "thiago.araujo@somagrupo.com.br",
  
   #usuário comum (sem admin)
 }
