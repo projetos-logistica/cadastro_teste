@@ -21,7 +21,7 @@ from DB_supabase import get_conn, test_connection, get_config
 # ------------------------------
 st.set_page_config(page_title="Presenças - Logística", layout="wide")
 
-STATUS_OPCOES = ["", "PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS",
+STATUS_OPCOES = ["", "Não Registrado" ,"PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS",
                  "ATESTADO", "AFASTADO", "ANIVERSÁRIO", "SAIDA ANTC",
                  "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC", "SIN EXP",
                  "SIN ALM", "SIN TEC", "DSR", "CURSO", "DESLIGADO", "-"]
