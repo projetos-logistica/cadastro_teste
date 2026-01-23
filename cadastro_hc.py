@@ -7,6 +7,7 @@
 # ---------------------------------------------------------------
 
 import streamlit as st
+import io
 import pandas as pd
 import os
 from datetime import date, timedelta
@@ -536,6 +537,28 @@ def coluna_config_datas(inicio: date, fim: date) -> Dict[str, st.column_config.C
         )
     return cfg
 
+def df_para_xlsx_bytes(df: pd.DataFrame, sheet_name: str = "Relatorio") -> bytes:
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
+
+        ws = writer.sheets[sheet_name]
+        ws.freeze_panes = "A2"          # congela o cabeçalho
+        ws.auto_filter.ref = ws.dimensions  # adiciona filtro no cabeçalho
+
+        # Ajuste simples de largura (opcional, mas ajuda)
+        for col_cells in ws.columns:
+            max_len = 0
+            col_letter = col_cells[0].column_letter
+            for cell in col_cells:
+                if cell.value is not None:
+                    max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = min(max_len + 2, 40)
+
+    output.seek(0)
+    return output.getvalue()
+
+
 # ------------------------------
 # Páginas
 # ------------------------------
@@ -657,13 +680,15 @@ def pagina_relatorios_globais():
             st.dataframe(df, use_container_width=True, hide_index=True)
             tag_setor = setor_sel if setor_sel != "Todos" else "todos_setores"
             tag_turno = turno_sel if turno_sel != "Todos" else "todos_turnos"
-            csv = df.to_csv(index=False).encode("utf-8-sig")
+            xlsx = df_para_xlsx_bytes(df, sheet_name="Presencas")
             st.download_button(
-                "Baixar CSV",
-                data=csv,
-                file_name=f"presencas_{tag_setor}_{tag_turno}_{dt_ini}_{dt_fim}.csv",
-                mime="text/csv",
+                "Baixar Excel (XLSX)",
+                data=xlsx,
+                file_name=f"presencas_{tag_setor}_{tag_turno}_{dt_ini}_{dt_fim}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
+
+
 
 # ------------------------------
 # Seed de colaboradores (opcional / one-off)
@@ -1253,13 +1278,14 @@ def pagina_lancamento_diario():
         if df.empty:
             st.info("Sem dados salvos para esse dia.")
         else:
-            csv = df.to_csv(index=False).encode("utf-8-sig")
+            xlsx = df_para_xlsx_bytes(df, sheet_name="Presencas_dia")
             st.download_button(
-                "Baixar CSV",
-                data=csv,
-                file_name=f"presencas_{setor}_{iso}.csv",
-                mime="text/csv",
-            )
+                "Baixar Excel (XLSX)",
+                data=xlsx,
+                file_name=f"presencas_{setor}_{iso}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )   
+
 
 # ------------------------------
 # Página de Configuração do DB
