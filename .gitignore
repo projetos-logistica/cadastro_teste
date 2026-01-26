@@ -1,8 +1,12 @@
 .venv/
 __pycache__/
 *.pyc
+
 build/
 dist/
 *.spec
 .vscode/
+
+.streamlit/
 .streamlit/secrets.toml
+
