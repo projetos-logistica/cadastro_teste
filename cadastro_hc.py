@@ -13,6 +13,8 @@ import os
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import List, Tuple, Dict
+import base64
+from pathlib import Path
 
 # Conexão com Supabase/Postgres
 from DB_supabase import get_conn, test_connection, get_config
@@ -153,6 +155,100 @@ ADMIN_EMAILS = {
     "projetos.logistica@somagrupo.com.br",
 }
 
+
+def _img_to_base64(path: str) -> str:
+    p = Path(path)
+    if not p.exists():
+        return ""
+    return base64.b64encode(p.read_bytes()).decode()
+
+def apply_login_theme(bg_path="Fundo tela login.png"):
+    bg_b64 = _img_to_base64(bg_path)
+
+    st.markdown(
+        f"""
+        <style>
+        header {{ display: none !important; }}
+        footer {{ display: none !important; }}
+        [data-testid="stSidebar"] {{ display: none !important; }}
+
+        /* Fundo transparente para não criar “placas brancas” */
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        section.main,
+        .block-container {{
+            background: transparent !important;
+        }}
+
+        .block-container {{
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+        }}
+
+        .stApp {{
+            background-image: url("data:image/png;base64,{bg_b64}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }}
+
+        /* 1) ZERA qualquer container maior que esteja pegando o estilo */
+        div[data-testid="stVerticalBlock"]:has(#login-anchor) {{
+            background: transparent !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+        }}
+
+        /* 2) APLICA o card APENAS no wrapper interno do container do login */
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(#login-anchor) {{
+            max-width: 560px !important;
+            margin: 120px auto 0 auto !important;
+
+            background: rgba(255,255,255,0.95) !important;
+            border-radius: 20px !important;
+            padding: 36px 34px 28px 34px !important;
+
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25) !important;
+            backdrop-filter: blur(6px) !important;
+        }}
+
+        /* (o resto do seu CSS pode ficar igual daqui pra baixo) */
+        .brand {{
+            text-align: center;
+            margin-bottom: 8px;
+        }}
+        .brand .title {{
+            font-size: 44px;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            margin: 0;
+            line-height: 1.1;
+        }}
+        .brand .sub {{
+            font-size: 12px;
+            letter-spacing: 0.35em;
+            opacity: 0.6;
+            margin-top: 6px;
+        }}
+        .brand .line {{
+            width: 64px;
+            height: 1px;
+            background: rgba(0,0,0,0.2);
+            margin: 18px auto 14px auto;
+        }}
+
+        .login-foot {{
+            text-align: center;
+            opacity: 0.65;
+            margin-top: 18px;
+            font-size: 0.95rem;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _allowed_emails():
     emails = {e.lower() for e in ALLOWED_EMAILS_DEFAULT}
     try:
@@ -182,21 +278,44 @@ def display_name_from_email(email: str) -> str:
     return " ".join(w.capitalize() for w in parts)
 
 def show_login():
-    st.markdown("<h2 style='text-align:center;'>Login</h2>", unsafe_allow_html=True)
-    with st.form("login_somente_email"):
-        email = st.text_input("E-mail").strip().lower()
-        ok = st.form_submit_button("Entrar")
+    apply_login_theme(bg_path="Fundo tela login.png")
+
+    col_esq, col_meio, col_dir = st.columns([1, 1.2, 1])
+
+    with col_meio:
+        with st.container():
+            st.markdown('<div id="login-anchor"></div>', unsafe_allow_html=True)
+
+            st.markdown(
+                """
+                <div class="brand">
+                  <div class="title">AZZAS</div>
+                  <div class="sub">FASHION &amp; LIFESTYLE</div>
+                  <div class="line"></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            with st.form("login_somente_email", clear_on_submit=False):
+                email = st.text_input("E-mail", placeholder="seu@email.com").strip().lower()
+                ok = st.form_submit_button("ENTRAR   →")
+
+            st.markdown(
+                '<div class="login-foot">O maior grupo de moda da América Latina</div>',
+                unsafe_allow_html=True,
+            )
 
     if ok:
-        allowed = _allowed_emails()
-        if email in allowed:
+        if email in _allowed_emails():
             st.session_state["auth"] = True
             st.session_state["user_email"] = email
-            st.success("Acesso liberado!")
             st.rerun()
         else:
             st.error("E-mail não autorizado.")
+
     st.stop()
+
 
 # ------------------------------
 # Banco (Postgres/Supabase) - Tabelas
