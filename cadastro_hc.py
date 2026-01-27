@@ -413,6 +413,21 @@ def data_minima_preenchimento(hoje: date | None = None) -> date:
 # ------------------------------
 # Camada de dados (Postgres)
 # ------------------------------
+
+def inativar_colaborador(colab_id: int, data_fim: date | None = None):
+    data_fim = data_fim or date.today()
+    cn = get_conn(); cur = cn.cursor()
+    cur.execute(
+        """
+        UPDATE public.colaboradores
+           SET ativo = false,
+               data_fim = %s
+         WHERE id = %s
+        """,
+        (data_fim, colab_id),
+    )
+    cn.commit(); cur.close(); cn.close()
+
 def get_or_create_leader(nome: str, setor: str, turno: str) -> int:
     cn = get_conn(); cur = cn.cursor()
     cur.execute(
@@ -471,14 +486,22 @@ def listar_todos_colaboradores(somente_ativos: bool = False) -> pd.DataFrame:
     cn.close()
     return df
 
-def adicionar_colaborador(nome: str, setor: str, turno: str):
+def adicionar_colaborador(nome: str, setor: str, turno: str, data_inicio: date | None = None):
     turno = normaliza_turno(turno)
+    data_inicio = data_inicio or date.today()
+
     cn = get_conn(); cur = cn.cursor()
     cur.execute(
-        "INSERT INTO public.colaboradores (nome, setor, turno, ativo) VALUES (%s, %s, %s, true)",
-        (nome.strip(), setor, turno),
+        """
+        INSERT INTO public.colaboradores (nome, setor, turno, ativo, data_inicio)
+        VALUES (%s, %s, %s, true, %s)
+        """,
+        (nome.strip(), setor, turno, data_inicio),
     )
     cn.commit(); cur.close(); cn.close()
+
+
+
 
 def atualizar_turno_colaborador(colab_id: int, novo_turno: str):
     novo_turno = normaliza_turno(novo_turno)
@@ -681,14 +704,36 @@ def df_para_xlsx_bytes(df: pd.DataFrame, sheet_name: str = "Relatorio") -> bytes
 # ------------------------------
 # Páginas
 # ------------------------------
+
+def listar_colaboradores_para_data(setor: str, turno: str, data_ref: date) -> pd.DataFrame:
+    cn = get_conn()
+    params = [setor, data_ref, data_ref]
+    query = """
+        SELECT id, nome, setor, turno, ativo, data_inicio, data_fim
+          FROM public.colaboradores
+         WHERE setor = %s
+           AND ativo = true
+           AND data_inicio <= %s
+           AND (data_fim IS NULL OR data_fim >= %s)
+    """
+    if turno != "Todos":
+        query += " AND turno = %s"
+        params.append(turno)
+
+    df = pd.read_sql(query, cn, params=params)
+    cn.close()
+    return df
+
 def pagina_colaboradores():
     st.markdown("### Colaboradores por Setor/Turno")
     colf1, colf2 = st.columns([1, 1])
+
     with colf1:
         setor = st.selectbox("Setor", OPCOES_SETORES, index=0, key="cols_setor")
     with colf2:
         turno_filtro = st.selectbox("Turno", ["Todos"] + OPCOES_TURNOS, index=0, key="cols_turno")
 
+    # carrega lista
     if turno_filtro == "Todos":
         df_all = listar_colaboradores_por_setor(setor, somente_ativos=False)
     else:
@@ -697,21 +742,25 @@ def pagina_colaboradores():
     df_ativos = df_all[df_all["ativo"] == True]
     df_inativos = df_all[df_all["ativo"] == False]
 
+    # ------------------ Adicionar ------------------
     with st.expander("Adicionar novo colaborador", expanded=False):
         with st.form("add_colab"):
             nome = st.text_input("Nome do colaborador")
             turno_new = st.selectbox("Turno", OPCOES_TURNOS, index=0)
             ok = st.form_submit_button("Adicionar")
+
         if ok:
             if nome.strip():
-                adicionar_colaborador(nome, setor, turno_new)
+                adicionar_colaborador(nome, setor, turno_new)  # se tiver UPSERT, mantém aqui
                 st.success(f"Colaborador '{nome}' adicionado ao setor {setor} com turno {turno_new}!")
                 st.rerun()
             else:
                 st.warning("Informe um nome válido.")
 
+    # ------------------ Excluir (inativar) ------------------
     with st.expander("Excluir colaborador (remover da lista)", expanded=False):
         st.caption("A exclusão aqui **inativa** o colaborador (não apaga o histórico).")
+
         if df_ativos.empty:
             st.info("Não há colaboradores ativos nesse filtro.")
         else:
@@ -720,41 +769,47 @@ def pagina_colaboradores():
                 for _, row in df_ativos.sort_values('nome').iterrows()
             }
             escolha_del = st.selectbox("Selecione o colaborador para excluir", list(opcoes_del.keys()))
+
             if st.button("Excluir colaborador", type="primary", key="btn_del_colab"):
-                atualizar_ativo_colaboradores([opcoes_del[escolha_del]], [])
+                inativar_colaborador(opcoes_del[escolha_del])
                 st.success("Colaborador removido da lista de ativos (inativado).")
                 st.rerun()
 
+    # ------------------ Editar turno ------------------
     with st.expander("Editar turno de colaborador", expanded=False):
         if df_all.empty:
             st.info("Nenhum colaborador listado no filtro atual.")
         else:
-            opcoes = {f"{row['nome']} (ID {row['id']})": int(row['id']) for _, row in df_all.sort_values('nome').iterrows()}
+            opcoes = {
+                f"{row['nome']} (ID {row['id']})": int(row['id'])
+                for _, row in df_all.sort_values('nome').iterrows()
+            }
             escolha = st.selectbox("Selecione o colaborador", list(opcoes.keys()))
             novo_turno = st.selectbox("Novo turno", OPCOES_TURNOS, index=0)
-            if st.button("Atualizar turno"):
+
+            if st.button("Atualizar turno", key="btn_atualizar_turno"):
                 atualizar_turno_colaborador(opcoes[escolha], novo_turno)
                 st.success("Turno atualizado!")
                 st.rerun()
 
+    # ------------------ Tabelas ------------------
     colA, colB = st.columns(2)
     with colA:
         st.subheader("Ativos")
-        if len(df_ativos) == 0:
+        if df_ativos.empty:
             st.info("Nenhum colaborador ativo para este filtro.")
         else:
             st.dataframe(
-                df_ativos[["id", "nome", "turno"]]
-                .rename(columns={"id": "ID", "nome": "Nome", "turno": "Turno"}),
+                df_ativos[["id", "nome", "turno"]].rename(columns={"id": "ID", "nome": "Nome", "turno": "Turno"}),
                 use_container_width=True
             )
     with colB:
         st.subheader("Inativos")
         st.dataframe(
-            df_inativos[["id", "nome", "turno"]]
-            .rename(columns={"id": "ID", "nome": "Nome", "turno": "Turno"}),
+            df_inativos[["id", "nome", "turno"]].rename(columns={"id": "ID", "nome": "Nome", "turno": "Turno"}),
             use_container_width=True
         )
+
 
 def pagina_preenchimento():
     return pagina_lancamento_diario()
@@ -1247,10 +1302,7 @@ def pagina_lancamento_diario():
         else:
             nome_preenchedor = st.text_input("Seu nome (opcional)", key="lan_nome")
 
-    if turno_sel == "Todos":
-        df_cols = listar_colaboradores_por_setor(setor, somente_ativos=True)
-    else:
-        df_cols = listar_colaboradores_setor_turno(setor, turno_sel, somente_ativos=True)
+    df_cols = listar_colaboradores_para_data(setor, turno_sel, data_dia)
 
     mask_terceiro = df_cols["nome"].str.contains(r"-\s*terceiro\s*$", case=False, na=False)
 
