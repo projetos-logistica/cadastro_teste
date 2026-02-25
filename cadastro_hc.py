@@ -821,32 +821,55 @@ def pagina_preenchimento():
 
 def pagina_relatorios_globais():
     st.markdown("### Relatórios Globais (todos os setores/turnos)")
+
     col1, col2 = st.columns(2)
     with col1:
         dt_ini = st.date_input("Data inicial", value=periodo_por_data(date.today())[0])
     with col2:
         dt_fim = st.date_input("Data final", value=periodo_por_data(date.today())[1])
 
-    col3, col4 = st.columns(2)
+    status_filtro_opcoes = [s for s in STATUS_OPCOES if s]
+
+    col3, col4, col5 = st.columns(3)
     with col3:
         setor_sel = st.selectbox("Filtrar por Setor", ["Todos"] + OPCOES_SETORES, index=0)
     with col4:
         turno_sel = st.selectbox("Filtrar por Turno", ["Todos"] + OPCOES_TURNOS, index=0)
+    with col5:
+        status_sel = st.multiselect(
+            "Filtrar por Status",
+            options=status_filtro_opcoes,
+            default=[],
+        )
 
     if st.button("Gerar relatório"):
         params = [dt_ini, dt_fim]
+
+        setor_clause = ""
         if setor_sel != "Todos":
+            setor_clause = " AND p.setor = %s "
             params.append(setor_sel)
+
+        turno_clause = ""
         if turno_sel != "Todos":
+            turno_clause = " AND p.turno = %s "
             params.append(turno_sel)
+
+        status_clause = ""
+        if status_sel:
+            placeholders = ", ".join(["%s"] * len(status_sel))
+            status_clause = f" AND p.status IN ({placeholders}) "
+            params.extend(status_sel)
 
         df = pd.read_sql(
             f"""
             SELECT c.nome AS colaborador, p.data, p.status, p.setor, p.turno, p.leader_nome
-              FROM public.presencas p JOIN public.colaboradores c ON c.id = p.colaborador_id
+              FROM public.presencas p
+              JOIN public.colaboradores c ON c.id = p.colaborador_id
              WHERE p.data BETWEEN %s AND %s
-             {"AND p.setor = %s" if setor_sel != "Todos" else ""}
-             {"AND p.turno = %s" if turno_sel != "Todos" else ""}
+             {setor_clause}
+             {turno_clause}
+             {status_clause}
              ORDER BY p.setor, p.turno, c.nome, p.data
             """,
             get_conn(),
@@ -857,13 +880,16 @@ def pagina_relatorios_globais():
             st.info("Sem dados no intervalo/filtros informados.")
         else:
             st.dataframe(df, use_container_width=True, hide_index=True)
+
             tag_setor = setor_sel if setor_sel != "Todos" else "todos_setores"
             tag_turno = turno_sel if turno_sel != "Todos" else "todos_turnos"
+            tag_status = "-".join(status_sel) if status_sel else "todos_status"
+
             xlsx = df_para_xlsx_bytes(df, sheet_name="Presencas")
             st.download_button(
                 "Baixar Excel (XLSX)",
                 data=xlsx,
-                file_name=f"presencas_{tag_setor}_{tag_turno}_{dt_ini}_{dt_fim}.xlsx",
+                file_name=f"presencas_{tag_setor}_{tag_turno}_{tag_status}_{dt_ini}_{dt_fim}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
 
