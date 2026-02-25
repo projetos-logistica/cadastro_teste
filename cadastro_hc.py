@@ -150,6 +150,8 @@ ALLOWED_EMAILS_DEFAULT = {
 
   #25/02/2026: Lucas Silvério
   "thais.andrade@somagrupo.com.br",
+  'willians.oliveira@carolbassi.com.br',
+  'felipe.clemente@carolbassi.com.br',
  
   #usuário comum (sem admin)
 }
