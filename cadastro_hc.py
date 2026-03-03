@@ -419,6 +419,33 @@ def data_minima_preenchimento(hoje: date | None = None) -> date:
 # Camada de dados (Postgres)
 # ------------------------------
 
+def is_dsr_date(d: date) -> bool:
+    """True se a data for domingo OU se estiver marcada como feriado/fim de semana na tabela public.feriados."""
+    # Regra 1: domingo
+    if d.weekday() == 6:  # Sunday
+        return True
+
+    # Regra 2: tabela de feriados/fim de semana no Supabase
+    cn = get_conn()
+    cur = cn.cursor()
+    cur.execute(
+        """
+        SELECT 1
+          FROM public.feriados
+         WHERE data = %s
+           AND (
+                lower(coalesce(indica_feriado,'')) = 'sim'
+             OR lower(coalesce(indica_fim_semana,'')) = 'sim'
+           )
+         LIMIT 1
+        """,
+        (d,),
+    )
+    achou = cur.fetchone() is not None
+    cur.close()
+    cn.close()
+    return achou
+
 def inativar_colaborador(colab_id: int, data_fim: date | None = None):
     data_fim = data_fim or date.today()
     cn = get_conn(); cur = cn.cursor()
@@ -1350,15 +1377,21 @@ def pagina_lancamento_diario():
         st.stop()
 
     iso = data_dia.isoformat()
+
+    hoje = date.today()
+    default_status = ""
+    if data_dia >= hoje and is_dsr_date(data_dia):
+        default_status = "DSR"
+
     base = pd.DataFrame(
-        {
-            "Colaborador": df_cols["nome"].tolist(),
-            "Setor": df_cols["setor"].tolist(),
-            "Turno": df_cols["turno"].tolist(),
-            iso: ""
-        },
-        dtype="object"
-    )
+    {
+        "Colaborador": df_cols["nome"].tolist(),
+        "Setor": df_cols["setor"].tolist(),
+        "Turno": df_cols["turno"].tolist(),
+        iso: default_status,
+    },
+    dtype="object"
+)
 
     pres = carregar_presencas(df_cols["id"].tolist(), data_dia, data_dia)
     mapa = dict(zip(df_cols["nome"], df_cols["id"]))
