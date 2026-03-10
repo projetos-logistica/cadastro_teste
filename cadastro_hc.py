@@ -152,6 +152,7 @@ ALLOWED_EMAILS_DEFAULT = {
   "thais.andrade@somagrupo.com.br",
   'willians.oliveira@carolbassi.com.br',
   'felipe.clemente@carolbassi.com.br',
+  'bruno.aguiar@somagrupo.com.br',
  
   #usuário comum (sem admin)
 }
