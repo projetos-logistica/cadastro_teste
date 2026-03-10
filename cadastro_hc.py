@@ -1411,6 +1411,25 @@ def pagina_lancamento_diario():
 
     st.markdown("#### Tabela do dia")
     editor_key = f"editor_dia_{iso}_{setor}_{turno_sel}_{'-'.join(sorted(filtro_st) or ['TODOS'])}"
+
+    # --- Botão de ordenação ---
+    ordem_key = f"ordem_{editor_key}"
+    if ordem_key not in st.session_state:
+        st.session_state[ordem_key] = "A→Z"
+
+    col_ord1, col_ord2 = st.columns([6, 1])
+    with col_ord2:
+        if st.button(
+            "Z→A" if st.session_state[ordem_key] == "A→Z" else "A→Z",
+            key=f"btn_ordem_{editor_key}",
+            help="Clique para inverter a ordenação dos colaboradores",
+        ):
+            st.session_state[ordem_key] = "Z→A" if st.session_state[ordem_key] == "A→Z" else "A→Z"
+
+    ascending = st.session_state[ordem_key] == "A→Z"
+    base = base.sort_values("Colaborador", ascending=ascending).reset_index(drop=True)
+    # --------------------------
+
     editado = st.data_editor(
         base,
         use_container_width=True,
