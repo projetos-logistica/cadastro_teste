@@ -1504,6 +1504,73 @@ def pagina_lancamento_diario():
             st.success("FÉRIAS aplicadas no período selecionado!")
             st.rerun()
 
+    # ← COLE AQUI O BLOCO ABAIXO ↓
+
+    # -------------------------------------------------------
+    # BLOCO AFASTADO
+    # -------------------------------------------------------
+
+    ja_em_afastado = {nome for nome, cid in mapa.items() if pres.get((cid, iso)) == "AFASTADO"}
+
+    marcados_afastado_editor = editado.loc[editado[iso] == "AFASTADO", "Colaborador"].tolist()
+
+    recem_afastados = [n for n in marcados_afastado_editor if n not in ja_em_afastado]
+
+    if recem_afastados:
+        with st.expander("Aplicar AFASTADO para um período", expanded=True):
+            st.caption(
+                "Você marcou AFASTADO em "
+                + data_dia.strftime("%d/%m/%Y")
+                + " para: "
+                + ", ".join(recem_afastados)
+            )
+
+            ini_periodo_atual_af, fim_periodo_atual_af = periodo_por_data(data_dia)
+
+            colaf1, colaf2 = st.columns(2)
+            with colaf1:
+                afastado_ini = st.date_input(
+                    "Início do afastamento",
+                    value=data_dia,
+                    min_value=data_minima_preenchimento(),
+                    format="DD/MM/YYYY",
+                    key=f"afastado_ini_{editor_key}",
+                )
+            with colaf2:
+                afastado_fim = st.date_input(
+                    "Fim do afastamento",
+                    value=fim_periodo_atual_af,
+                    min_value=afastado_ini,
+                    format="DD/MM/YYYY",
+                    key=f"afastado_fim_{editor_key}",
+                )
+
+            selecionados_af = st.multiselect(
+                "Aplicar para:",
+                options=recem_afastados,
+                default=recem_afastados,
+                key=f"sele_afastado_{editor_key}",
+            )
+
+            if selecionados_af and st.button(
+                "Aplicar AFASTADO no período para os colaboradores selecionados",
+                type="primary",
+                key=f"btn_aplicar_afastado_{editor_key}",
+            ):
+                aplicar_status_em_periodo(
+                    nomes_colaboradores=selecionados_af,
+                    df_cols=df_cols,
+                    mapa_id_por_nome=mapa,
+                    inicio=afastado_ini,
+                    fim=afastado_fim,
+                    status="AFASTADO",
+                    setor=setor,
+                    turno_selecao=(turno_sel if turno_sel != "Todos" else "-"),
+                    leader_nome=nome_preenchedor,
+                )
+                st.success("AFASTADO aplicado no período selecionado!")
+                st.rerun()
+
 
     if st.button("Salvar dia"):
         salvar_presencas(
