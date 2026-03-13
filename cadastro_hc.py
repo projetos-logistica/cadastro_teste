@@ -153,7 +153,10 @@ ALLOWED_EMAILS_DEFAULT = {
   'willians.oliveira@carolbassi.com.br',
   'felipe.clemente@carolbassi.com.br',
   'bruno.aguiar@somagrupo.com.br',
- 
+
+  #13/03/2026: Lucas Silvério
+'ruana.rangel@somagrupo.com.br',
+  
   #usuário comum (sem admin)
 }
 
