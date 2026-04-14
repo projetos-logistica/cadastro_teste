@@ -156,6 +156,10 @@ ALLOWED_EMAILS_DEFAULT = {
 
   #13/03/2026: Lucas Silvério
 'ruana.rangel@somagrupo.com.br',
+
+  #14/04/2026: Lucas Silvério
+'Luiz.filipe@somagrupo.com.br',
+'Victor.teixeira@somagrupo.com.br',
   
   #usuário comum (sem admin)
 }
