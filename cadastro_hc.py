@@ -153,14 +153,7 @@ ALLOWED_EMAILS_DEFAULT = {
   'willians.oliveira@carolbassi.com.br',
   'felipe.clemente@carolbassi.com.br',
   'bruno.aguiar@somagrupo.com.br',
-
-  #13/03/2026: Lucas Silvério
-'ruana.rangel@somagrupo.com.br',
-
-  #14/04/2026: Lucas Silvério
-'Luiz.filipe@somagrupo.com.br',
-'Victor.teixeira@somagrupo.com.br',
-  
+ 
   #usuário comum (sem admin)
 }
 
@@ -1497,6 +1490,17 @@ def pagina_lancamento_diario():
             type="primary",
             key=f"btn_aplicar_ferias_{editor_key}",
         ):
+            # Salvar os preenchimentos atuais do dia para não perder ao dar rerun
+            salvar_presencas(
+                editado,
+                mapa,
+                data_dia,
+                data_dia,
+                setor,
+                turno=(turno_sel if turno_sel != "Todos" else "-"),
+                leader_nome=nome_preenchedor or "",
+            )
+            
             aplicar_status_em_periodo(
                 nomes_colaboradores=selecionados,
                 df_cols=df_cols,
@@ -1564,6 +1568,17 @@ def pagina_lancamento_diario():
                 type="primary",
                 key=f"btn_aplicar_afastado_{editor_key}",
             ):
+                # Salvar os preenchimentos atuais do dia para não perder ao dar rerun
+                salvar_presencas(
+                    editado,
+                    mapa,
+                    data_dia,
+                    data_dia,
+                    setor,
+                    turno=(turno_sel if turno_sel != "Todos" else "-"),
+                    leader_nome=nome_preenchedor or "",
+                )
+                
                 aplicar_status_em_periodo(
                     nomes_colaboradores=selecionados_af,
                     df_cols=df_cols,
