@@ -153,8 +153,6 @@ ALLOWED_EMAILS_DEFAULT = {
   'willians.oliveira@carolbassi.com.br',
   'felipe.clemente@carolbassi.com.br',
   'bruno.aguiar@somagrupo.com.br',
-  'ruana.rangel@somagrupo.com.br',
-  'ricardo.junior@somagrupo.com.br'
  
   #usuário comum (sem admin)
 }
@@ -1414,22 +1412,34 @@ def pagina_lancamento_diario():
     st.markdown("#### Tabela do dia")
     editor_key = f"editor_dia_{iso}_{setor}_{turno_sel}_{'-'.join(sorted(filtro_st) or ['TODOS'])}"
 
-    # --- Botão de ordenação ---
-    ordem_key = f"ordem_{editor_key}"
-    if ordem_key not in st.session_state:
-        st.session_state[ordem_key] = "A→Z"
+    # --- Ordenação ---
+    direcao_ordem_key = f"dir_ordem_{editor_key}"
+    if direcao_ordem_key not in st.session_state:
+        st.session_state[direcao_ordem_key] = "A→Z"
 
-    col_ord1, col_ord2 = st.columns([6, 1])
+    col_ord1, col_ord2, col_ord3 = st.columns([5, 1, 1])
     with col_ord2:
+        col_sort = st.selectbox(
+            "Ordenar por:",
+            ["Colaborador", "Turno"],
+            key=f"sel_ordem_{editor_key}",
+            label_visibility="collapsed"
+        )
+    with col_ord3:
         if st.button(
-            "Z→A" if st.session_state[ordem_key] == "A→Z" else "A→Z",
+            "Z→A" if st.session_state[direcao_ordem_key] == "A→Z" else "A→Z",
             key=f"btn_ordem_{editor_key}",
-            help="Clique para inverter a ordenação dos colaboradores",
+            help="Clique para inverter a ordenação",
+            use_container_width=True
         ):
-            st.session_state[ordem_key] = "Z→A" if st.session_state[ordem_key] == "A→Z" else "A→Z"
+            st.session_state[direcao_ordem_key] = "Z→A" if st.session_state[direcao_ordem_key] == "A→Z" else "A→Z"
+            st.rerun()
 
-    ascending = st.session_state[ordem_key] == "A→Z"
-    base = base.sort_values("Colaborador", ascending=ascending).reset_index(drop=True)
+    ascending = st.session_state[direcao_ordem_key] == "A→Z"
+    if col_sort == "Turno":
+        base = base.sort_values(["Turno", "Colaborador"], ascending=[ascending, True]).reset_index(drop=True)
+    else:
+        base = base.sort_values("Colaborador", ascending=ascending).reset_index(drop=True)
     # --------------------------
 
     editado = st.data_editor(
