@@ -23,7 +23,7 @@ st.set_page_config(page_title="Presenças - Logística", layout="wide")
 
 STATUS_OPCOES = ["", "Não Registrado" ,"PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS",
                  "ATESTADO", "AFASTADO", "ANIVERSÁRIO", "SAIDA ANTC",
-                 "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC", "SIN EXP",
+                 "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC PA", "SIN REC MP", "SIN EXP",
                  "SIN ALM", "SIN TEC", "DSR", "CURSO", "DESLIGADO", "-"]
 
 OPCOES_SETORES = [
@@ -32,7 +32,8 @@ OPCOES_SETORES = [
     "Distribuição",
     "Almoxarifado",
     "PAF",
-    "Recebimento",
+    "Recebimento PA",
+    "Recebimento MP",
     "Expedição",
     "E-commerce",
 ]
@@ -41,7 +42,8 @@ OPCOES_TURNOS = ["1°", "2°", "3°", "ÚNICO", "INTERMEDIARIO"]
 # quais status "SIN" redirecionam o setor do dia
 SIN_TO_SETOR = {
     "SIN AVI":  "Aviamento",
-    "SIN REC":  "Recebimento",
+    "SIN REC PA": "Recebimento PA",
+    "SIN REC MP": "Recebimento MP",
     "SIN EXP":  "Expedição",
     "SIN ALM":  "Almoxarifado",
     "SIN TEC":  "Tecido",
@@ -159,6 +161,9 @@ def init_db():
             foreign key (colaborador_id) references public.colaboradores(id)
         );
         """)
+        # Migração automática: Recebimento -> Recebimento PA
+        cur.execute("UPDATE public.colaboradores SET setor = 'Recebimento PA' WHERE setor = 'Recebimento';")
+        cur.execute("UPDATE public.presencas SET setor = 'Recebimento PA' WHERE setor = 'Recebimento';")
         cn.commit()
 
 
@@ -281,10 +286,10 @@ def adicionar_colaborador(nome: str, setor: str, turno: str):
     )
     cn.commit(); cur.close(); cn.close()
 
-def atualizar_turno_colaborador(colab_id: int, novo_turno: str):
+def atualizar_setor_turno_colaborador(colab_id: int, novo_setor: str, novo_turno: str):
     novo_turno = normaliza_turno(novo_turno)
     cn = get_conn(); cur = cn.cursor()
-    cur.execute("UPDATE public.colaboradores SET turno=%s WHERE id=%s", (novo_turno, colab_id))
+    cur.execute("UPDATE public.colaboradores SET setor=%s, turno=%s WHERE id=%s", (novo_setor, novo_turno, colab_id))
     cn.commit(); cur.close(); cn.close()
 
 def upsert_colaborador_turno(nome: str, setor: str, turno: str):
@@ -514,16 +519,38 @@ def pagina_colaboradores():
                 st.success("Colaborador removido da lista de ativos (inativado).")
                 st.rerun()
 
-    with st.expander("Editar turno de colaborador", expanded=False):
+    with st.expander("Editar setor/turno de colaborador", expanded=False):
         if df_all.empty:
             st.info("Nenhum colaborador listado no filtro atual.")
         else:
-            opcoes = {f"{row['nome']} (ID {row['id']})": int(row['id']) for _, row in df_all.sort_values('nome').iterrows()}
+            opcoes_df = df_all.sort_values('nome')
+            opcoes = {f"{row['nome']} (ID {row['id']})": int(row['id']) for _, row in opcoes_df.iterrows()}
             escolha = st.selectbox("Selecione o colaborador", list(opcoes.keys()))
-            novo_turno = st.selectbox("Novo turno", OPCOES_TURNOS, index=0)
-            if st.button("Atualizar turno"):
-                atualizar_turno_colaborador(opcoes[escolha], novo_turno)
-                st.success("Turno atualizado!")
+            
+            # Buscar dados atuais do colaborador selecionado
+            colab_id_sel = opcoes[escolha]
+            colab_info = opcoes_df[opcoes_df["id"] == colab_id_sel].iloc[0]
+            
+            setor_atual = colab_info["setor"]
+            turno_atual = colab_info["turno"]
+            
+            # Índices default
+            try:
+                idx_setor = OPCOES_SETORES.index(setor_atual)
+            except ValueError:
+                idx_setor = 0
+                
+            try:
+                idx_turno = OPCOES_TURNOS.index(turno_atual)
+            except ValueError:
+                idx_turno = 0
+                
+            novo_setor = st.selectbox("Novo setor", OPCOES_SETORES, index=idx_setor, key="edit_colab_setor")
+            novo_turno = st.selectbox("Novo turno", OPCOES_TURNOS, index=idx_turno, key="edit_colab_turno")
+            
+            if st.button("Atualizar colaborador"):
+                atualizar_setor_turno_colaborador(colab_id_sel, novo_setor, novo_turno)
+                st.success("Setor e turno atualizados!")
                 st.rerun()
 
     colA, colB = st.columns(2)
@@ -770,7 +797,7 @@ MOISES AUGUSTO DOS SANTOS DIAS
 VICTOR HUGO MOTA CAMILLO
 DIEGO FIGUEIREDO MARQUES
 ALESSANDRO BOUCAS JORGE""",
-    "Recebimento": """ANDREZA VALERIANO RAMOS PASSOS
+    "Recebimento PA": """ANDREZA VALERIANO RAMOS PASSOS
 BRAULIO CARDOSO DA SILVA
 CHARLES DA SILVA COSTA
 DENIS RODRIGUES DE SOUSA
@@ -945,7 +972,11 @@ def _normalize_setor(nome_sheet: str) -> str:
         "DISTRIBUIÇÃO": "Distribuição",
         "ALMOXARIFADO": "Almoxarifado",
         "PAF": "PAF",
-        "RECEBIMENTO": "Recebimento",
+        "RECEBIMENTO": "Recebimento PA",
+        "RECEBIMENTO PA": "Recebimento PA",
+        "RECEBIMENTO_PA": "Recebimento PA",
+        "RECEBIMENTO MP": "Recebimento MP",
+        "RECEBIMENTO_MP": "Recebimento MP",
         "EXPEDICAO": "Expedição",
         "EXPEDIÇÃO": "Expedição",
         "E-COMMERCE": "E-commerce",
