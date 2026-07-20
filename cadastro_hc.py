@@ -26,11 +26,7 @@ st.set_page_config(page_title="Presenças - Logística", layout="wide")
 
 STATUS_OPCOES = ["", "PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS",
                  "ATESTADO", "AFASTADO", "ANIVERSÁRIO", "SAIDA ANTC",
-<<<<<<< HEAD
                  "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC PA", "SIN REC MP", "SIN EXP",
-=======
-                 "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC", "SIN EXP",
->>>>>>> a4f4b7e (incluido opção de editar nome de colaborador)
                  "SIN ALM", "SIN TEC", "DSR", "CURSO", "DESLIGADO", "-"]
 
 OPCOES_SETORES = [
@@ -159,13 +155,10 @@ ALLOWED_EMAILS_DEFAULT = {
   'willians.oliveira@carolbassi.com.br',
   'felipe.clemente@carolbassi.com.br',
   'bruno.aguiar@somagrupo.com.br',
-<<<<<<< HEAD
 
    #15/06/2026: Lucas Silvério
   'victor.teixeira@somagrupo.com.br',
   'luiz.filipe@somagrupo.com.br',
-=======
->>>>>>> a4f4b7e (incluido opção de editar nome de colaborador)
  
   #usuário comum (sem admin)
 }
