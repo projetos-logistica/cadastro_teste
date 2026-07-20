@@ -174,7 +174,7 @@ def _img_to_base64(path: str) -> str:
         return ""
     return base64.b64encode(p.read_bytes()).decode()
 
-def apply_login_theme(bg_path="Fundo tela login.png"):
+def apply_login_theme(bg_path="Fundo Tela Login.png"):
     bg_b64 = _img_to_base64(bg_path)
 
     st.markdown(
@@ -290,7 +290,7 @@ def display_name_from_email(email: str) -> str:
     return " ".join(w.capitalize() for w in parts)
 
 def show_login():
-    apply_login_theme(bg_path="Fundo tela login.png")
+    apply_login_theme(bg_path="Fundo Tela Login.png")
 
     col_esq, col_meio, col_dir = st.columns([1, 1.2, 1])
 
