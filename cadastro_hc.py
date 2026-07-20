@@ -26,7 +26,11 @@ st.set_page_config(page_title="Presenças - Logística", layout="wide")
 
 STATUS_OPCOES = ["", "PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS",
                  "ATESTADO", "AFASTADO", "ANIVERSÁRIO", "SAIDA ANTC",
+<<<<<<< HEAD
                  "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC PA", "SIN REC MP", "SIN EXP",
+=======
+                 "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC", "SIN EXP",
+>>>>>>> a4f4b7e (incluido opção de editar nome de colaborador)
                  "SIN ALM", "SIN TEC", "DSR", "CURSO", "DESLIGADO", "-"]
 
 OPCOES_SETORES = [
@@ -155,10 +159,13 @@ ALLOWED_EMAILS_DEFAULT = {
   'willians.oliveira@carolbassi.com.br',
   'felipe.clemente@carolbassi.com.br',
   'bruno.aguiar@somagrupo.com.br',
+<<<<<<< HEAD
 
    #15/06/2026: Lucas Silvério
   'victor.teixeira@somagrupo.com.br',
   'luiz.filipe@somagrupo.com.br',
+=======
+>>>>>>> a4f4b7e (incluido opção de editar nome de colaborador)
  
   #usuário comum (sem admin)
 }
@@ -545,10 +552,11 @@ def adicionar_colaborador(nome: str, setor: str, turno: str, data_inicio: date |
 
 
 
-def atualizar_setor_turno_colaborador(colab_id: int, novo_setor: str, novo_turno: str):
+def atualizar_dados_colaborador(colab_id: int, novo_nome: str, novo_setor: str, novo_turno: str):
+    novo_nome = novo_nome.strip()
     novo_turno = normaliza_turno(novo_turno)
     cn = get_conn(); cur = cn.cursor()
-    cur.execute("UPDATE public.colaboradores SET setor=%s, turno=%s WHERE id=%s", (novo_setor, novo_turno, colab_id))
+    cur.execute("UPDATE public.colaboradores SET nome=%s, setor=%s, turno=%s WHERE id=%s", (novo_nome, novo_setor, novo_turno, colab_id))
     cn.commit(); cur.close(); cn.close()
 
 def upsert_colaborador_turno(nome: str, setor: str, turno: str):
@@ -817,8 +825,8 @@ def pagina_colaboradores():
                 st.success("Colaborador removido da lista de ativos (inativado).")
                 st.rerun()
 
-    # ------------------ Editar setor/turno ------------------
-    with st.expander("Editar setor/turno de colaborador", expanded=False):
+    # ------------------ Editar colaborador ------------------
+    with st.expander("Editar dados de colaborador (Nome/Setor/Turno)", expanded=False):
         if df_all.empty:
             st.info("Nenhum colaborador listado no filtro atual.")
         else:
@@ -827,16 +835,14 @@ def pagina_colaboradores():
                 f"{row['nome']} (ID {row['id']})": int(row['id'])
                 for _, row in opcoes_df.iterrows()
             }
-            escolha = st.selectbox("Selecione o colaborador", list(opcoes.keys()))
+            escolha = st.selectbox("Selecione o colaborador para editar", list(opcoes.keys()), key="select_editar_colab")
+            colab_id_selecionado = opcoes[escolha]
             
-            # Buscar dados atuais do colaborador selecionado
-            colab_id_sel = opcoes[escolha]
-            colab_info = opcoes_df[opcoes_df["id"] == colab_id_sel].iloc[0]
+            linha_atual = opcoes_df[opcoes_df['id'] == colab_id_selecionado].iloc[0]
+            nome_atual = linha_atual['nome']
+            setor_atual = linha_atual['setor']
+            turno_atual = linha_atual['turno']
             
-            setor_atual = colab_info["setor"]
-            turno_atual = colab_info["turno"]
-            
-            # Índices default
             try:
                 idx_setor = OPCOES_SETORES.index(setor_atual)
             except ValueError:
@@ -846,15 +852,18 @@ def pagina_colaboradores():
                 idx_turno = OPCOES_TURNOS.index(turno_atual)
             except ValueError:
                 idx_turno = 0
-                
+            
+            novo_nome = st.text_input("Nome do colaborador", value=nome_atual, key="input_novo_nome")
             novo_setor = st.selectbox("Novo setor", OPCOES_SETORES, index=idx_setor, key="edit_colab_setor")
             novo_turno = st.selectbox("Novo turno", OPCOES_TURNOS, index=idx_turno, key="edit_colab_turno")
-            
-            if st.button("Atualizar colaborador", key="btn_atualizar_colaborador"):
-                atualizar_setor_turno_colaborador(colab_id_sel, novo_setor, novo_turno)
-                st.success("Setor e turno atualizados!")
-                st.rerun()
 
+            if st.button("Atualizar colaborador", key="btn_atualizar_colab"):
+                if novo_nome.strip():
+                    atualizar_dados_colaborador(colab_id_selecionado, novo_nome, novo_setor, novo_turno)
+                    st.success("Dados do colaborador atualizados com sucesso!")
+                    st.rerun()
+                else:
+                    st.warning("O nome não pode ficar em branco.")
     # ------------------ Tabelas ------------------
     colA, colB = st.columns(2)
     with colA:
