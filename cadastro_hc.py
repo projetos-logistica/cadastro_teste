@@ -39,7 +39,6 @@ OPCOES_SETORES = [
     "Recebimento MP",
     "Expedição",
     "E-commerce",
-    "Carol Bassi",
     "HUB ES"
 ]
 OPCOES_TURNOS = ["1°", "2°", "3°", "ÚNICO", "INTERMEDIARIO"]
