@@ -7,11 +7,14 @@
 # ---------------------------------------------------------------
 
 import streamlit as st
+import io
 import pandas as pd
 import os
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import List, Tuple, Dict
+import base64
+from pathlib import Path
 
 # Conexão com Supabase/Postgres
 from DB_supabase import get_conn, test_connection, get_config
@@ -21,9 +24,9 @@ from DB_supabase import get_conn, test_connection, get_config
 # ------------------------------
 st.set_page_config(page_title="Presenças - Logística", layout="wide")
 
-STATUS_OPCOES = ["", "Não Registrado" ,"PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS",
+STATUS_OPCOES = ["", "PRESENTE", "BH", "ATRASADO", "FALTA", "FÉRIAS",
                  "ATESTADO", "AFASTADO", "ANIVERSÁRIO", "SAIDA ANTC",
-                 "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC", "SIN EXP",
+                 "SIN ECOM", "SIN DIST", "SIN AVI", "SIN REC PA", "SIN REC MP", "SIN EXP",
                  "SIN ALM", "SIN TEC", "DSR", "CURSO", "DESLIGADO", "-"]
 
 OPCOES_SETORES = [
@@ -32,16 +35,19 @@ OPCOES_SETORES = [
     "Distribuição",
     "Almoxarifado",
     "PAF",
-    "Recebimento",
+    "Recebimento PA",
+    "Recebimento MP",
     "Expedição",
     "E-commerce",
+    "HUB ES"
 ]
 OPCOES_TURNOS = ["1°", "2°", "3°", "ÚNICO", "INTERMEDIARIO"]
 
 # quais status "SIN" redirecionam o setor do dia
 SIN_TO_SETOR = {
     "SIN AVI":  "Aviamento",
-    "SIN REC":  "Recebimento",
+    "SIN REC PA": "Recebimento PA",
+    "SIN REC MP": "Recebimento MP",
     "SIN EXP":  "Expedição",
     "SIN ALM":  "Almoxarifado",
     "SIN TEC":  "Tecido",
@@ -63,15 +69,201 @@ ALLOWED_EMAILS_DEFAULT = {
     "lucas.silverio@somagrupo.com.br",
   "rodrigo.pessoa@somagrupo.com.br",
   "marcos.lima@somagrupo.com.br", 
-  "luiz.anchieta@somagrupo.com.br",
+  "luiz.anchieta@somagrupo.com.br", 
+  "carlos.desouza@somagrupo.com.br",
+  "natanael.junior@somagrupo.com.br", 
+  "luiz.silva@somagrupo.com.br", 
+  "alessandro.jorge@farmrio.com.br",
+  "eduardo.oliveira@somagrupo.com.br", 
+  "allan.pires@somagrupo.com.br", 
+  "marlon.freitas@somagrupo.com.br",
+  "fernando.souza@animale.com.br",
+  "patrick.lima@somagrupo.com.br",
+  "leandro.fernandes@somagrupo.com.br",
+  "bruno.soares@animale.com.br",
   "lucas.mlima@somagrupo.com.br",
-  "vinicius.stefano@somagrupo.com.br"
-  "gabriella.sozinho@animale.com.br", #usuário comum (sem admin)
+  "vinicius.stefano@somagrupo.com.br",
+  "gabriella.sozinho@animale.com.br", 
+
+"isac.mello@somagrupo.com.br",
+"deyvid.silva@somagrupo.com.br",
+"lucas.yan@somagrupo.com.br",
+"allan.fernandes@somagrupo.com.br",
+"patrick.casemiro@somagrupo.com.br",
+"emerson.alves@somagrupo.com.br",
+"michael.salles@mariafilo.com.br",
+"pedro.queluci@somagrupo.com.br",
+"marcelo.freitas@somagrupo.com.br", 
+
+ #11/12/2025 - adriano soares 
+"rachel.paiva@somagrupo.com.br",
+"fabiane.corso@somagrupo.com.br",
+"fabio.rocha@somagrupo.com.br",
+"ana.moutinho@somagrupo.com.br",
+"deivisson.alcantara@somagrupo.com.br",
+
+# 11/12/2025 - adriano soares
+"joao.rodrigues@animale.com.br",
+"cesar.silva@somagrupo.com.br",
+"michelle.rocha@somagrupo.com.br",
+"leon.gomes@somagrupo.com.br",
+"sandra.regina@mariafilo.com.br",
+"tayna.vieira@somagrupo.com.br",
+"pedro.nascimento@somagrupo.com.br",
+"edilson.matheus@somagrupo.com.br",
+"giovanna.castro@somagrupo.com.br",
+"carlos.teixeira@somagrupo.com.br",
+"renan.rangel@somagrupo.com.br",
+"kamille.santos@somagrupo.com.br",
+"lucas.castro@somagrupo.com.br",
+"suelen.braga@somagrupo.com.br",
+"gabriel.patricio@somagrupo.com.br",
+"jose.junior@somagrupo.com.br",
+
+#16/12/2025:
+
+"jorge.batista@somagrupo.com.br",
+"joaomarcos.silva@somagrupo.com.br",
+"pedro.melo@somagrupo.com.br",
+"nicollas.rigar@animale.com.br",
+"bruno.silva@animale.com.br",
+"cesar.silva@somagrupo.com.br",
+"eduardo.oliveira@somagrupo.com.br",
+"edvando.ferreira@farmrio.com.br",
+"yuri.avila@somagrupo.com.br",
+"deivisson.alcantara@somagrupo.com.br",
+"mateus.henrique@somagrupo.com.br",
+"roger.rodrigues@somagrupo.com.br", 
+"bruno.barbosa@animale.com.br",
+"gabriel.sandro@somagrupo.com.br", 
+
+  #08/01/2026: Lucas Silvério
+  "renata.ferraz@farmrio.com.br",
+  "romulo.martins@somagrupo.com.br",
+  "thiago.araujo@somagrupo.com.br",
+
+  #15/01/2026: Lucas Silvério
+  "liliane.castro@somagrupo.com.br",
+
+  #19/01/2026: Lucas Silvério
+  "amanda.alves@somagrupo.com.br",
+  "marcio.souza@somagrupo.com.br",
+
+  #25/02/2026: Lucas Silvério
+  "thais.andrade@somagrupo.com.br",
+  'willians.oliveira@carolbassi.com.br',
+  'felipe.clemente@carolbassi.com.br',
+  'bruno.aguiar@somagrupo.com.br',
+
+   #15/06/2026: Lucas Silvério
+  'victor.teixeira@somagrupo.com.br',
+  'luiz.filipe@somagrupo.com.br',
+
+  #10/08/2026: Lucas Silvério
+  'gil.portela@animale.com.br',
+  
+  #28/08/2026: Lucas Silvério
+  'Patrick.costa@somagrupo.com.br',
+  #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
     "projetos.logistica@somagrupo.com.br",
 }
+
+
+def _img_to_base64(path: str) -> str:
+    p = Path(path)
+    if not p.exists():
+        return ""
+    return base64.b64encode(p.read_bytes()).decode()
+
+def apply_login_theme(bg_path="Fundo Tela Login.png"):
+    bg_b64 = _img_to_base64(bg_path)
+
+    st.markdown(
+        f"""
+        <style>
+        header {{ display: none !important; }}
+        footer {{ display: none !important; }}
+        [data-testid="stSidebar"] {{ display: none !important; }}
+
+        /* Fundo transparente para não criar “placas brancas” */
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        section.main,
+        .block-container {{
+            background: transparent !important;
+        }}
+
+        .block-container {{
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+        }}
+
+        .stApp {{
+            background-image: url("data:image/png;base64,{bg_b64}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }}
+
+        /* 1) ZERA qualquer container maior que esteja pegando o estilo */
+        div[data-testid="stVerticalBlock"]:has(#login-anchor) {{
+            background: transparent !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+        }}
+
+        /* 2) APLICA o card APENAS no wrapper interno do container do login */
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(#login-anchor) {{
+            max-width: 560px !important;
+            margin: 120px auto 0 auto !important;
+
+            background: rgba(255,255,255,0.95) !important;
+            border-radius: 20px !important;
+            padding: 36px 34px 28px 34px !important;
+
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25) !important;
+            backdrop-filter: blur(6px) !important;
+        }}
+
+        /* (o resto do seu CSS pode ficar igual daqui pra baixo) */
+        .brand {{
+            text-align: center;
+            margin-bottom: 8px;
+        }}
+        .brand .title {{
+            font-size: 44px;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            margin: 0;
+            line-height: 1.1;
+        }}
+        .brand .sub {{
+            font-size: 12px;
+            letter-spacing: 0.35em;
+            opacity: 0.6;
+            margin-top: 6px;
+        }}
+        .brand .line {{
+            width: 64px;
+            height: 1px;
+            background: rgba(0,0,0,0.2);
+            margin: 18px auto 14px auto;
+        }}
+
+        .login-foot {{
+            text-align: center;
+            opacity: 0.65;
+            margin-top: 18px;
+            font-size: 0.95rem;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 def _allowed_emails():
     emails = {e.lower() for e in ALLOWED_EMAILS_DEFAULT}
@@ -102,21 +294,44 @@ def display_name_from_email(email: str) -> str:
     return " ".join(w.capitalize() for w in parts)
 
 def show_login():
-    st.markdown("<h2 style='text-align:center;'>Login</h2>", unsafe_allow_html=True)
-    with st.form("login_somente_email"):
-        email = st.text_input("E-mail").strip().lower()
-        ok = st.form_submit_button("Entrar")
+    apply_login_theme(bg_path="Fundo Tela Login.png")
+
+    col_esq, col_meio, col_dir = st.columns([1, 1.2, 1])
+
+    with col_meio:
+        with st.container():
+            st.markdown('<div id="login-anchor"></div>', unsafe_allow_html=True)
+
+            st.markdown(
+                """
+                <div class="brand">
+                  <div class="title">AZZAS</div>
+                  <div class="sub">FASHION &amp; LIFESTYLE</div>
+                  <div class="line"></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            with st.form("login_somente_email", clear_on_submit=False):
+                email = st.text_input("E-mail", placeholder="seu@email.com").strip().lower()
+                ok = st.form_submit_button("ENTRAR   →")
+
+            st.markdown(
+                '<div class="login-foot">O maior grupo de moda da América Latina</div>',
+                unsafe_allow_html=True,
+            )
 
     if ok:
-        allowed = _allowed_emails()
-        if email in allowed:
+        if email in _allowed_emails():
             st.session_state["auth"] = True
             st.session_state["user_email"] = email
-            st.success("Acesso liberado!")
             st.rerun()
         else:
             st.error("E-mail não autorizado.")
+
     st.stop()
+
 
 # ------------------------------
 # Banco (Postgres/Supabase) - Tabelas
@@ -159,6 +374,9 @@ def init_db():
             foreign key (colaborador_id) references public.colaboradores(id)
         );
         """)
+        # Migração automática: Recebimento -> Recebimento PA
+        cur.execute("UPDATE public.colaboradores SET setor = 'Recebimento PA' WHERE setor = 'Recebimento';")
+        cur.execute("UPDATE public.presencas SET setor = 'Recebimento PA' WHERE setor = 'Recebimento';")
         cn.commit()
 
 
@@ -214,6 +432,48 @@ def data_minima_preenchimento(hoje: date | None = None) -> date:
 # ------------------------------
 # Camada de dados (Postgres)
 # ------------------------------
+
+def is_dsr_date(d: date) -> bool:
+    """True se a data for domingo OU se estiver marcada como feriado/fim de semana na tabela public.feriados."""
+    # Regra 1: domingo
+    if d.weekday() == 6:  # Sunday
+        return True
+
+    # Regra 2: tabela de feriados/fim de semana no Supabase
+    cn = get_conn()
+    cur = cn.cursor()
+    cur.execute(
+        """
+        SELECT 1
+          FROM public.feriados
+         WHERE data = %s
+           AND (
+                lower(coalesce(indica_feriado,'')) = 'sim'
+             OR lower(coalesce(indica_fim_semana,'')) = 'sim'
+           )
+         LIMIT 1
+        """,
+        (d,),
+    )
+    achou = cur.fetchone() is not None
+    cur.close()
+    cn.close()
+    return achou
+
+def inativar_colaborador(colab_id: int, data_fim: date | None = None):
+    data_fim = data_fim or date.today()
+    cn = get_conn(); cur = cn.cursor()
+    cur.execute(
+        """
+        UPDATE public.colaboradores
+           SET ativo = false,
+               data_fim = %s
+         WHERE id = %s
+        """,
+        (data_fim, colab_id),
+    )
+    cn.commit(); cur.close(); cn.close()
+
 def get_or_create_leader(nome: str, setor: str, turno: str) -> int:
     cn = get_conn(); cur = cn.cursor()
     cur.execute(
@@ -272,19 +532,28 @@ def listar_todos_colaboradores(somente_ativos: bool = False) -> pd.DataFrame:
     cn.close()
     return df
 
-def adicionar_colaborador(nome: str, setor: str, turno: str):
+def adicionar_colaborador(nome: str, setor: str, turno: str, data_inicio: date | None = None):
     turno = normaliza_turno(turno)
+    data_inicio = data_inicio or date.today()
+
     cn = get_conn(); cur = cn.cursor()
     cur.execute(
-        "INSERT INTO public.colaboradores (nome, setor, turno, ativo) VALUES (%s, %s, %s, true)",
-        (nome.strip(), setor, turno),
+        """
+        INSERT INTO public.colaboradores (nome, setor, turno, ativo, data_inicio)
+        VALUES (%s, %s, %s, true, %s)
+        """,
+        (nome.strip(), setor, turno, data_inicio),
     )
     cn.commit(); cur.close(); cn.close()
 
-def atualizar_turno_colaborador(colab_id: int, novo_turno: str):
+
+
+
+def atualizar_dados_colaborador(colab_id: int, novo_nome: str, novo_setor: str, novo_turno: str):
+    novo_nome = novo_nome.strip()
     novo_turno = normaliza_turno(novo_turno)
     cn = get_conn(); cur = cn.cursor()
-    cur.execute("UPDATE public.colaboradores SET turno=%s WHERE id=%s", (novo_turno, colab_id))
+    cur.execute("UPDATE public.colaboradores SET nome=%s, setor=%s, turno=%s WHERE id=%s", (novo_nome, novo_setor, novo_turno, colab_id))
     cn.commit(); cur.close(); cn.close()
 
 def upsert_colaborador_turno(nome: str, setor: str, turno: str):
@@ -362,36 +631,26 @@ def salvar_presencas(df_editado: pd.DataFrame, mapa_id_por_nome: Dict[str, int],
         turno_para_gravar = r.get("Turno", turno)
 
         if status == "":
-                # ✅ Para HOJE: vazio vira "Não Registrado" (não apaga do banco)
-            if dte == date.today():
-                status = "Não Registrado"
-            else:
-                # Para outros dias: mantém comportamento antigo (apaga)
-                cur.execute(
-                    "DELETE FROM public.presencas WHERE colaborador_id=%s AND data=%s",
-                    (cid, dte)
-                )
-                continue  # vai para o próximo registro
-
-        # Daqui para baixo sempre faz UPSERT (incluindo "Não Registrado" para hoje)
-        cur.execute(
-            """
-            INSERT INTO public.presencas
-              (colaborador_id, data, status, setor, turno, leader_nome, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, now(), now())
-            ON CONFLICT (colaborador_id, data) DO UPDATE
-              SET status      = EXCLUDED.status,
-                  setor       = EXCLUDED.setor,
-                  turno       = EXCLUDED.turno,
-                  leader_nome = EXCLUDED.leader_nome,
-                  updated_at  = now()
-              -- só atualiza se houve mudança de algum campo relevante
-              WHERE presencas.status IS DISTINCT FROM EXCLUDED.status
-                 OR presencas.setor  IS DISTINCT FROM EXCLUDED.setor
-                 OR presencas.turno  IS DISTINCT FROM EXCLUDED.turno;
-            """,
-            (cid, dte, status, setor_para_gravar, turno_para_gravar, leader_nome),
-        )
+            cur.execute("DELETE FROM public.presencas WHERE colaborador_id=%s AND data=%s", (cid, dte))
+        else:
+            cur.execute(
+    """
+    INSERT INTO public.presencas
+      (colaborador_id, data, status, setor, turno, leader_nome, created_at, updated_at)
+    VALUES (%s, %s, %s, %s, %s, %s, now(), now())
+    ON CONFLICT (colaborador_id, data) DO UPDATE
+      SET status      = EXCLUDED.status,
+          setor       = EXCLUDED.setor,
+          turno       = EXCLUDED.turno,
+          leader_nome = EXCLUDED.leader_nome,
+          updated_at  = now()
+      -- só atualiza se houve mudança de algum campo relevante
+      WHERE presencas.status IS DISTINCT FROM EXCLUDED.status
+         OR presencas.setor  IS DISTINCT FROM EXCLUDED.setor
+         OR presencas.turno  IS DISTINCT FROM EXCLUDED.turno;
+    """,
+    (cid, dte, status, setor_para_gravar, turno_para_gravar, leader_nome),
+)
 
     cn.commit()
     cur.close(); cn.close()
@@ -467,17 +726,61 @@ def coluna_config_datas(inicio: date, fim: date) -> Dict[str, st.column_config.C
         )
     return cfg
 
+def df_para_xlsx_bytes(df: pd.DataFrame, sheet_name: str = "Relatorio") -> bytes:
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
+
+        ws = writer.sheets[sheet_name]
+        ws.freeze_panes = "A2"          # congela o cabeçalho
+        ws.auto_filter.ref = ws.dimensions  # adiciona filtro no cabeçalho
+
+        # Ajuste simples de largura (opcional, mas ajuda)
+        for col_cells in ws.columns:
+            max_len = 0
+            col_letter = col_cells[0].column_letter
+            for cell in col_cells:
+                if cell.value is not None:
+                    max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = min(max_len + 2, 40)
+
+    output.seek(0)
+    return output.getvalue()
+
+
 # ------------------------------
 # Páginas
 # ------------------------------
+
+def listar_colaboradores_para_data(setor: str, turno: str, data_ref: date) -> pd.DataFrame:
+    cn = get_conn()
+    params = [setor, data_ref, data_ref]
+    query = """
+        SELECT id, nome, setor, turno, ativo, data_inicio, data_fim
+          FROM public.colaboradores
+         WHERE setor = %s
+           AND ativo = true
+           AND data_inicio <= %s
+           AND (data_fim IS NULL OR data_fim >= %s)
+    """
+    if turno != "Todos":
+        query += " AND turno = %s"
+        params.append(turno)
+
+    df = pd.read_sql(query, cn, params=params)
+    cn.close()
+    return df
+
 def pagina_colaboradores():
     st.markdown("### Colaboradores por Setor/Turno")
     colf1, colf2 = st.columns([1, 1])
+
     with colf1:
         setor = st.selectbox("Setor", OPCOES_SETORES, index=0, key="cols_setor")
     with colf2:
         turno_filtro = st.selectbox("Turno", ["Todos"] + OPCOES_TURNOS, index=0, key="cols_turno")
 
+    # carrega lista
     if turno_filtro == "Todos":
         df_all = listar_colaboradores_por_setor(setor, somente_ativos=False)
     else:
@@ -486,21 +789,25 @@ def pagina_colaboradores():
     df_ativos = df_all[df_all["ativo"] == True]
     df_inativos = df_all[df_all["ativo"] == False]
 
+    # ------------------ Adicionar ------------------
     with st.expander("Adicionar novo colaborador", expanded=False):
         with st.form("add_colab"):
             nome = st.text_input("Nome do colaborador")
             turno_new = st.selectbox("Turno", OPCOES_TURNOS, index=0)
             ok = st.form_submit_button("Adicionar")
+
         if ok:
             if nome.strip():
-                adicionar_colaborador(nome, setor, turno_new)
+                adicionar_colaborador(nome, setor, turno_new)  # se tiver UPSERT, mantém aqui
                 st.success(f"Colaborador '{nome}' adicionado ao setor {setor} com turno {turno_new}!")
                 st.rerun()
             else:
                 st.warning("Informe um nome válido.")
 
+    # ------------------ Excluir (inativar) ------------------
     with st.expander("Excluir colaborador (remover da lista)", expanded=False):
         st.caption("A exclusão aqui **inativa** o colaborador (não apaga o histórico).")
+
         if df_ativos.empty:
             st.info("Não há colaboradores ativos nesse filtro.")
         else:
@@ -509,73 +816,124 @@ def pagina_colaboradores():
                 for _, row in df_ativos.sort_values('nome').iterrows()
             }
             escolha_del = st.selectbox("Selecione o colaborador para excluir", list(opcoes_del.keys()))
+
             if st.button("Excluir colaborador", type="primary", key="btn_del_colab"):
-                atualizar_ativo_colaboradores([opcoes_del[escolha_del]], [])
+                inativar_colaborador(opcoes_del[escolha_del])
                 st.success("Colaborador removido da lista de ativos (inativado).")
                 st.rerun()
 
-    with st.expander("Editar turno de colaborador", expanded=False):
+    # ------------------ Editar colaborador ------------------
+    with st.expander("Editar dados de colaborador (Nome/Setor/Turno)", expanded=False):
         if df_all.empty:
             st.info("Nenhum colaborador listado no filtro atual.")
         else:
-            opcoes = {f"{row['nome']} (ID {row['id']})": int(row['id']) for _, row in df_all.sort_values('nome').iterrows()}
-            escolha = st.selectbox("Selecione o colaborador", list(opcoes.keys()))
-            novo_turno = st.selectbox("Novo turno", OPCOES_TURNOS, index=0)
-            if st.button("Atualizar turno"):
-                atualizar_turno_colaborador(opcoes[escolha], novo_turno)
-                st.success("Turno atualizado!")
-                st.rerun()
+            opcoes_df = df_all.sort_values('nome')
+            opcoes = {
+                f"{row['nome']} (ID {row['id']})": int(row['id'])
+                for _, row in opcoes_df.iterrows()
+            }
+            escolha = st.selectbox("Selecione o colaborador para editar", list(opcoes.keys()), key="select_editar_colab")
+            colab_id_selecionado = opcoes[escolha]
+            
+            linha_atual = opcoes_df[opcoes_df['id'] == colab_id_selecionado].iloc[0]
+            nome_atual = linha_atual['nome']
+            setor_atual = linha_atual['setor']
+            turno_atual = linha_atual['turno']
+            
+            try:
+                idx_setor = OPCOES_SETORES.index(setor_atual)
+            except ValueError:
+                idx_setor = 0
+                
+            try:
+                idx_turno = OPCOES_TURNOS.index(turno_atual)
+            except ValueError:
+                idx_turno = 0
+            
+            novo_nome = st.text_input("Nome do colaborador", value=nome_atual, key="input_novo_nome")
+            novo_setor = st.selectbox("Novo setor", OPCOES_SETORES, index=idx_setor, key="edit_colab_setor")
+            novo_turno = st.selectbox("Novo turno", OPCOES_TURNOS, index=idx_turno, key="edit_colab_turno")
 
+            if st.button("Atualizar colaborador", key="btn_atualizar_colab"):
+                if novo_nome.strip():
+                    atualizar_dados_colaborador(colab_id_selecionado, novo_nome, novo_setor, novo_turno)
+                    st.success("Dados do colaborador atualizados com sucesso!")
+                    st.rerun()
+                else:
+                    st.warning("O nome não pode ficar em branco.")
+    # ------------------ Tabelas ------------------
     colA, colB = st.columns(2)
     with colA:
         st.subheader("Ativos")
-        if len(df_ativos) == 0:
+        if df_ativos.empty:
             st.info("Nenhum colaborador ativo para este filtro.")
         else:
             st.dataframe(
-                df_ativos[["id", "nome", "turno"]]
-                .rename(columns={"id": "ID", "nome": "Nome", "turno": "Turno"}),
+                df_ativos[["id", "nome", "turno"]].rename(columns={"id": "ID", "nome": "Nome", "turno": "Turno"}),
                 use_container_width=True
             )
     with colB:
         st.subheader("Inativos")
         st.dataframe(
-            df_inativos[["id", "nome", "turno"]]
-            .rename(columns={"id": "ID", "nome": "Nome", "turno": "Turno"}),
+            df_inativos[["id", "nome", "turno"]].rename(columns={"id": "ID", "nome": "Nome", "turno": "Turno"}),
             use_container_width=True
         )
+
 
 def pagina_preenchimento():
     return pagina_lancamento_diario()
 
 def pagina_relatorios_globais():
     st.markdown("### Relatórios Globais (todos os setores/turnos)")
+
     col1, col2 = st.columns(2)
     with col1:
         dt_ini = st.date_input("Data inicial", value=periodo_por_data(date.today())[0])
     with col2:
         dt_fim = st.date_input("Data final", value=periodo_por_data(date.today())[1])
 
-    col3, col4 = st.columns(2)
+    status_filtro_opcoes = [s for s in STATUS_OPCOES if s]
+
+    col3, col4, col5 = st.columns(3)
     with col3:
         setor_sel = st.selectbox("Filtrar por Setor", ["Todos"] + OPCOES_SETORES, index=0)
     with col4:
         turno_sel = st.selectbox("Filtrar por Turno", ["Todos"] + OPCOES_TURNOS, index=0)
+    with col5:
+        status_sel = st.multiselect(
+            "Filtrar por Status",
+            options=status_filtro_opcoes,
+            default=[],
+        )
 
     if st.button("Gerar relatório"):
         params = [dt_ini, dt_fim]
+
+        setor_clause = ""
         if setor_sel != "Todos":
+            setor_clause = " AND p.setor = %s "
             params.append(setor_sel)
+
+        turno_clause = ""
         if turno_sel != "Todos":
+            turno_clause = " AND p.turno = %s "
             params.append(turno_sel)
+
+        status_clause = ""
+        if status_sel:
+            placeholders = ", ".join(["%s"] * len(status_sel))
+            status_clause = f" AND p.status IN ({placeholders}) "
+            params.extend(status_sel)
 
         df = pd.read_sql(
             f"""
             SELECT c.nome AS colaborador, p.data, p.status, p.setor, p.turno, p.leader_nome
-              FROM public.presencas p JOIN public.colaboradores c ON c.id = p.colaborador_id
+              FROM public.presencas p
+              JOIN public.colaboradores c ON c.id = p.colaborador_id
              WHERE p.data BETWEEN %s AND %s
-             {"AND p.setor = %s" if setor_sel != "Todos" else ""}
-             {"AND p.turno = %s" if turno_sel != "Todos" else ""}
+             {setor_clause}
+             {turno_clause}
+             {status_clause}
              ORDER BY p.setor, p.turno, c.nome, p.data
             """,
             get_conn(),
@@ -586,15 +944,20 @@ def pagina_relatorios_globais():
             st.info("Sem dados no intervalo/filtros informados.")
         else:
             st.dataframe(df, use_container_width=True, hide_index=True)
+
             tag_setor = setor_sel if setor_sel != "Todos" else "todos_setores"
             tag_turno = turno_sel if turno_sel != "Todos" else "todos_turnos"
-            csv = df.to_csv(index=False).encode("utf-8-sig")
+            tag_status = "-".join(status_sel) if status_sel else "todos_status"
+
+            xlsx = df_para_xlsx_bytes(df, sheet_name="Presencas")
             st.download_button(
-                "Baixar CSV",
-                data=csv,
-                file_name=f"presencas_{tag_setor}_{tag_turno}_{dt_ini}_{dt_fim}.csv",
-                mime="text/csv",
+                "Baixar Excel (XLSX)",
+                data=xlsx,
+                file_name=f"presencas_{tag_setor}_{tag_turno}_{tag_status}_{dt_ini}_{dt_fim}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
+
+
 
 # ------------------------------
 # Seed de colaboradores (opcional / one-off)
@@ -770,7 +1133,7 @@ MOISES AUGUSTO DOS SANTOS DIAS
 VICTOR HUGO MOTA CAMILLO
 DIEGO FIGUEIREDO MARQUES
 ALESSANDRO BOUCAS JORGE""",
-    "Recebimento": """ANDREZA VALERIANO RAMOS PASSOS
+    "Recebimento PA": """ANDREZA VALERIANO RAMOS PASSOS
 BRAULIO CARDOSO DA SILVA
 CHARLES DA SILVA COSTA
 DENIS RODRIGUES DE SOUSA
@@ -945,7 +1308,14 @@ def _normalize_setor(nome_sheet: str) -> str:
         "DISTRIBUIÇÃO": "Distribuição",
         "ALMOXARIFADO": "Almoxarifado",
         "PAF": "PAF",
-        "RECEBIMENTO": "Recebimento",
+        "RECEBIMENTO": "Recebimento PA",
+        "RECEBIMENTO PA": "Recebimento PA",
+        "RECEBIMENTO_PA": "Recebimento PA",
+        "RECEBIMENTO MP": "Recebimento MP",
+        "RECEBIMENTO_MP": "Recebimento MP",
+        "CAROL BASSI": "Carol Bassi",
+        "HUB ES": "HUB ES",
+        "HUB_ES": "HUB ES",
         "EXPEDICAO": "Expedição",
         "EXPEDIÇÃO": "Expedição",
         "E-COMMERCE": "E-commerce",
@@ -1034,10 +1404,7 @@ def pagina_lancamento_diario():
         else:
             nome_preenchedor = st.text_input("Seu nome (opcional)", key="lan_nome")
 
-    if turno_sel == "Todos":
-        df_cols = listar_colaboradores_por_setor(setor, somente_ativos=True)
-    else:
-        df_cols = listar_colaboradores_setor_turno(setor, turno_sel, somente_ativos=True)
+    df_cols = listar_colaboradores_para_data(setor, turno_sel, data_dia)
 
     mask_terceiro = df_cols["nome"].str.contains(r"-\s*terceiro\s*$", case=False, na=False)
 
@@ -1054,15 +1421,21 @@ def pagina_lancamento_diario():
         st.stop()
 
     iso = data_dia.isoformat()
+
+    hoje = date.today()
+    default_status = ""
+    if data_dia >= hoje and is_dsr_date(data_dia):
+        default_status = "DSR"
+
     base = pd.DataFrame(
-        {
-            "Colaborador": df_cols["nome"].tolist(),
-            "Setor": df_cols["setor"].tolist(),
-            "Turno": df_cols["turno"].tolist(),
-            iso: ""
-        },
-        dtype="object"
-    )
+    {
+        "Colaborador": df_cols["nome"].tolist(),
+        "Setor": df_cols["setor"].tolist(),
+        "Turno": df_cols["turno"].tolist(),
+        iso: default_status,
+    },
+    dtype="object"
+)
 
     pres = carregar_presencas(df_cols["id"].tolist(), data_dia, data_dia)
     mapa = dict(zip(df_cols["nome"], df_cols["id"]))
@@ -1081,6 +1454,37 @@ def pagina_lancamento_diario():
 
     st.markdown("#### Tabela do dia")
     editor_key = f"editor_dia_{iso}_{setor}_{turno_sel}_{'-'.join(sorted(filtro_st) or ['TODOS'])}"
+
+    # --- Ordenação ---
+    direcao_ordem_key = f"dir_ordem_{editor_key}"
+    if direcao_ordem_key not in st.session_state:
+        st.session_state[direcao_ordem_key] = "A→Z"
+
+    col_ord1, col_ord2, col_ord3 = st.columns([5, 1, 1])
+    with col_ord2:
+        col_sort = st.selectbox(
+            "Ordenar por:",
+            ["Colaborador", "Turno"],
+            key=f"sel_ordem_{editor_key}",
+            label_visibility="collapsed"
+        )
+    with col_ord3:
+        if st.button(
+            "Z→A" if st.session_state[direcao_ordem_key] == "A→Z" else "A→Z",
+            key=f"btn_ordem_{editor_key}",
+            help="Clique para inverter a ordenação",
+            use_container_width=True
+        ):
+            st.session_state[direcao_ordem_key] = "Z→A" if st.session_state[direcao_ordem_key] == "A→Z" else "A→Z"
+            st.rerun()
+
+    ascending = st.session_state[direcao_ordem_key] == "A→Z"
+    if col_sort == "Turno":
+        base = base.sort_values(["Turno", "Colaborador"], ascending=[ascending, True]).reset_index(drop=True)
+    else:
+        base = base.sort_values("Colaborador", ascending=ascending).reset_index(drop=True)
+    # --------------------------
+
     editado = st.data_editor(
         base,
         use_container_width=True,
@@ -1141,6 +1545,17 @@ def pagina_lancamento_diario():
             type="primary",
             key=f"btn_aplicar_ferias_{editor_key}",
         ):
+            # Salvar os preenchimentos atuais do dia para não perder ao dar rerun
+            salvar_presencas(
+                editado,
+                mapa,
+                data_dia,
+                data_dia,
+                setor,
+                turno=(turno_sel if turno_sel != "Todos" else "-"),
+                leader_nome=nome_preenchedor or "",
+            )
+            
             aplicar_status_em_periodo(
                 nomes_colaboradores=selecionados,
                 df_cols=df_cols,
@@ -1154,6 +1569,84 @@ def pagina_lancamento_diario():
             )
             st.success("FÉRIAS aplicadas no período selecionado!")
             st.rerun()
+
+    # ← COLE AQUI O BLOCO ABAIXO ↓
+
+    # -------------------------------------------------------
+    # BLOCO AFASTADO
+    # -------------------------------------------------------
+
+    ja_em_afastado = {nome for nome, cid in mapa.items() if pres.get((cid, iso)) == "AFASTADO"}
+
+    marcados_afastado_editor = editado.loc[editado[iso] == "AFASTADO", "Colaborador"].tolist()
+
+    recem_afastados = [n for n in marcados_afastado_editor if n not in ja_em_afastado]
+
+    if recem_afastados:
+        with st.expander("Aplicar AFASTADO para um período", expanded=True):
+            st.caption(
+                "Você marcou AFASTADO em "
+                + data_dia.strftime("%d/%m/%Y")
+                + " para: "
+                + ", ".join(recem_afastados)
+            )
+
+            ini_periodo_atual_af, fim_periodo_atual_af = periodo_por_data(data_dia)
+
+            colaf1, colaf2 = st.columns(2)
+            with colaf1:
+                afastado_ini = st.date_input(
+                    "Início do afastamento",
+                    value=data_dia,
+                    min_value=data_minima_preenchimento(),
+                    format="DD/MM/YYYY",
+                    key=f"afastado_ini_{editor_key}",
+                )
+            with colaf2:
+                afastado_fim = st.date_input(
+                    "Fim do afastamento",
+                    value=fim_periodo_atual_af,
+                    min_value=afastado_ini,
+                    format="DD/MM/YYYY",
+                    key=f"afastado_fim_{editor_key}",
+                )
+
+            selecionados_af = st.multiselect(
+                "Aplicar para:",
+                options=recem_afastados,
+                default=recem_afastados,
+                key=f"sele_afastado_{editor_key}",
+            )
+
+            if selecionados_af and st.button(
+                "Aplicar AFASTADO no período para os colaboradores selecionados",
+                type="primary",
+                key=f"btn_aplicar_afastado_{editor_key}",
+            ):
+                # Salvar os preenchimentos atuais do dia para não perder ao dar rerun
+                salvar_presencas(
+                    editado,
+                    mapa,
+                    data_dia,
+                    data_dia,
+                    setor,
+                    turno=(turno_sel if turno_sel != "Todos" else "-"),
+                    leader_nome=nome_preenchedor or "",
+                )
+                
+                aplicar_status_em_periodo(
+                    nomes_colaboradores=selecionados_af,
+                    df_cols=df_cols,
+                    mapa_id_por_nome=mapa,
+                    inicio=afastado_ini,
+                    fim=afastado_fim,
+                    status="AFASTADO",
+                    setor=setor,
+                    turno_selecao=(turno_sel if turno_sel != "Todos" else "-"),
+                    leader_nome=nome_preenchedor,
+                )
+                st.success("AFASTADO aplicado no período selecionado!")
+                st.rerun()
 
 
     if st.button("Salvar dia"):
@@ -1184,13 +1677,14 @@ def pagina_lancamento_diario():
         if df.empty:
             st.info("Sem dados salvos para esse dia.")
         else:
-            csv = df.to_csv(index=False).encode("utf-8-sig")
+            xlsx = df_para_xlsx_bytes(df, sheet_name="Presencas_dia")
             st.download_button(
-                "Baixar CSV",
-                data=csv,
-                file_name=f"presencas_{setor}_{iso}.csv",
-                mime="text/csv",
-            )
+                "Baixar Excel (XLSX)",
+                data=xlsx,
+                file_name=f"presencas_{setor}_{iso}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )   
+
 
 # ------------------------------
 # Página de Configuração do DB
