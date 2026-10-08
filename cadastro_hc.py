@@ -83,7 +83,8 @@ ALLOWED_EMAILS_DEFAULT = {
   "bruno.soares@animale.com.br",
   "lucas.mlima@somagrupo.com.br",
   "vinicius.stefano@somagrupo.com.br",
-  "gabriella.sozinho@animale.com.br", 
+  "gabriella.sozinho@animale.com.br", #usuário comum (sem admin)
+  "kauann.gomes@somagrupo.com.br",
 
 "isac.mello@somagrupo.com.br",
 "deyvid.silva@somagrupo.com.br",
@@ -167,7 +168,6 @@ ALLOWED_EMAILS_DEFAULT = {
 
   #30/09/2026: Lucas Silvério
   'ruana.rangel@somagrupo.com.br',
-  #usuário comum (sem admin)
 }
 
 ADMIN_EMAILS = {
