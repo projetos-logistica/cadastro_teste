@@ -168,6 +168,9 @@ ALLOWED_EMAILS_DEFAULT = {
 
   #30/09/2026: Lucas Silvério
   'ruana.rangel@somagrupo.com.br',
+
+  #26/10/2026: Igor Lima
+  'ricardo.junior@somagrupo.com.br',
 }
 
 ADMIN_EMAILS = {
